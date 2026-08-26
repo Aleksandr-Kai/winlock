@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{10AAF319-2041-4842-8553-D167EF1BF358}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinLock.Core", "src\WinLock.Core\WinLock.Core.csproj", "{A9BE1BF9-123F-42B0-8861-F8B179980DBD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{BC55B3EB-E3E7-4E8A-A162-C1E1F5E6044A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinLock.Core.Tests", "tests\WinLock.Core.Tests\WinLock.Core.Tests.csproj", "{6381D03C-7812-4282-8513-7FE7438828FA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinLock.Service", "src\WinLock.Service\WinLock.Service.csproj", "{92B69E81-A2A4-472F-8E8C-9D305EAEA0A2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinLock.Agent.UI", "src\WinLock.Agent.UI\WinLock.Agent.UI.csproj", "{E05754BD-419D-48C8-8E4E-3009F58A6A26}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinLock.ControllerStub", "src\WinLock.ControllerStub\WinLock.ControllerStub.csproj", "{92322067-E5A3-421B-8CEA-C4077406A676}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinLock.Setup", "src\WinLock.Setup\WinLock.Setup.csproj", "{35579E38-7EDA-45C4-84DA-B3109E83FD8C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A9BE1BF9-123F-42B0-8861-F8B179980DBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9BE1BF9-123F-42B0-8861-F8B179980DBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9BE1BF9-123F-42B0-8861-F8B179980DBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9BE1BF9-123F-42B0-8861-F8B179980DBD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6381D03C-7812-4282-8513-7FE7438828FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6381D03C-7812-4282-8513-7FE7438828FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6381D03C-7812-4282-8513-7FE7438828FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6381D03C-7812-4282-8513-7FE7438828FA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92B69E81-A2A4-472F-8E8C-9D305EAEA0A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92B69E81-A2A4-472F-8E8C-9D305EAEA0A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92B69E81-A2A4-472F-8E8C-9D305EAEA0A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{92B69E81-A2A4-472F-8E8C-9D305EAEA0A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E05754BD-419D-48C8-8E4E-3009F58A6A26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E05754BD-419D-48C8-8E4E-3009F58A6A26}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E05754BD-419D-48C8-8E4E-3009F58A6A26}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E05754BD-419D-48C8-8E4E-3009F58A6A26}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92322067-E5A3-421B-8CEA-C4077406A676}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92322067-E5A3-421B-8CEA-C4077406A676}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92322067-E5A3-421B-8CEA-C4077406A676}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{92322067-E5A3-421B-8CEA-C4077406A676}.Release|Any CPU.Build.0 = Release|Any CPU
+		{35579E38-7EDA-45C4-84DA-B3109E83FD8C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{35579E38-7EDA-45C4-84DA-B3109E83FD8C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{35579E38-7EDA-45C4-84DA-B3109E83FD8C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{35579E38-7EDA-45C4-84DA-B3109E83FD8C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A9BE1BF9-123F-42B0-8861-F8B179980DBD} = {10AAF319-2041-4842-8553-D167EF1BF358}
+		{6381D03C-7812-4282-8513-7FE7438828FA} = {BC55B3EB-E3E7-4E8A-A162-C1E1F5E6044A}
+		{92B69E81-A2A4-472F-8E8C-9D305EAEA0A2} = {10AAF319-2041-4842-8553-D167EF1BF358}
+		{E05754BD-419D-48C8-8E4E-3009F58A6A26} = {10AAF319-2041-4842-8553-D167EF1BF358}
+		{92322067-E5A3-421B-8CEA-C4077406A676} = {10AAF319-2041-4842-8553-D167EF1BF358}
+		{35579E38-7EDA-45C4-84DA-B3109E83FD8C} = {10AAF319-2041-4842-8553-D167EF1BF358}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,33 @@
+<Window x:Class="WinLock.Agent.UI.PairingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Привязка WinLock" Width="440" Height="700" MinWidth="380" MinHeight="480"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResize"
+        Background="#151B23">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32">
+            <TextBlock Text="Привязка родительского приложения" Foreground="White" FontSize="20"
+                       FontWeight="Bold" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,0,0,16" />
+
+            <TextBlock x:Name="StatusText" Foreground="#9AA5B1" FontSize="13" TextWrapping="Wrap"
+                       TextAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,16" />
+
+            <Border Background="White" CornerRadius="8" Padding="12"
+                    HorizontalAlignment="Center" Margin="0,0,0,16">
+                <Image x:Name="QrImage" Width="280" Height="280" />
+            </Border>
+
+            <TextBlock Text="Откройте приложение WinLock на телефоне родителя и отсканируйте этот QR-код."
+                       Foreground="#9AA5B1" FontSize="12" TextWrapping="Wrap"
+                       TextAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,12" />
+
+            <TextBlock Text="Или скопируйте текст ниже, если сканировать нечем:"
+                       Foreground="#9AA5B1" FontSize="11" TextWrapping="Wrap"
+                       TextAlignment="Center" HorizontalAlignment="Center" Margin="0,0,0,4" />
+            <TextBox x:Name="QrTextBox" IsReadOnly="True" TextWrapping="Wrap" FontFamily="Consolas"
+                     FontSize="11" Padding="6" Margin="0,0,0,20" />
+
+            <Button x:Name="CloseButton" Content="Закрыть" Padding="0,10" FontSize="14" Click="CloseButton_Click" />
+        </StackPanel>
+    </ScrollViewer>
+</Window>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="WinLock.Setup" />
+
+  <!-- Installing/updating the service, protecting %ProgramData%\WinLock, and opening the
+       firewall all require admin rights. requireAdministrator makes Windows show the UAC
+       prompt automatically the moment this exe is launched — no console, no separate
+       "Run as administrator" step for the parent to remember. -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <!-- DPI mode is set via Application.SetHighDpiMode in Program.cs instead — WinForms warns
+       (WFAC010) if it's also declared here. -->
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 / 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>

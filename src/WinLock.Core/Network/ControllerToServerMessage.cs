@@ -1,0 +1,33 @@
+using System.Text.Json.Serialization;
+using WinLock.Core.Models;
+
+namespace WinLock.Core.Network;
+
+/// <summary>Messages a connected controller (phone) sends to the PC over the WebSocket.</summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(AuthResponse), "authResponse")]
+[JsonDerivedType(typeof(ExtendTimeCommand), "extendTime")]
+[JsonDerivedType(typeof(UpdateScheduleCommand), "updateSchedule")]
+[JsonDerivedType(typeof(RequestScreenshotCommand), "requestScreenshot")]
+[JsonDerivedType(typeof(LockNowCommand), "lockNow")]
+[JsonDerivedType(typeof(UnlockNowCommand), "unlockNow")]
+public abstract record ControllerToServerMessage;
+
+/// <summary>Reply to <see cref="AuthChallenge"/>: proves possession of this controller's
+/// secret for this specific nonce, without ever transmitting the secret itself.</summary>
+public sealed record AuthResponse(Guid ControllerId, string Nonce, string ResponseBase64) : ControllerToServerMessage;
+
+public sealed record ExtendTimeCommand(string RequestId, int Minutes) : ControllerToServerMessage;
+
+public sealed record UpdateScheduleCommand(string RequestId, ScheduleConfig Schedule) : ControllerToServerMessage;
+
+/// <summary>Explicit, single request for one current screenshot — never a subscription.</summary>
+public sealed record RequestScreenshotCommand(string RequestId) : ControllerToServerMessage;
+
+/// <summary>Locks the machine right now, regardless of remaining budget or schedule window.
+/// Always succeeds.</summary>
+public sealed record LockNowCommand(string RequestId) : ControllerToServerMessage;
+
+/// <summary>Lifts a manual lock. Fails (see the ack's ErrorMessage) if the budget has since
+/// run out — the schedule would just re-lock it immediately otherwise.</summary>
+public sealed record UnlockNowCommand(string RequestId) : ControllerToServerMessage;

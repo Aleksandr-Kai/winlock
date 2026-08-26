@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-WinLock.Service-3c282b17-1c07-43f3-8243-62db6ea1cf72</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Not a Web SDK project (it's the Worker SDK — this is fundamentally a background
+       service), but it also hosts the Kestrel/WebSocket network channel to paired phones,
+       which needs the ASP.NET Core shared framework. This is the documented way to opt a
+       non-Web-SDK project into it. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WinLock.Core\WinLock.Core.csproj" />
+  </ItemGroup>
+</Project>
