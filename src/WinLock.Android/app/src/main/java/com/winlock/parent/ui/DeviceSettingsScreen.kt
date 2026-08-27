@@ -122,7 +122,7 @@ fun DeviceSettingsScreen(
                     scope.launch {
                         statusMessage = "Ищем ПК в локальной сети..."
                         statusIsError = false
-                        val discovered = DiscoveryClient(context).discover().firstOrNull { it.deviceId == current.deviceId }
+                        val discovered = DiscoveryClient(context).discover(targetDeviceId = current.deviceId).firstOrNull { it.deviceId == current.deviceId }
                         if (discovered == null) {
                             statusMessage = "Не найден автоматически. Проверьте IP-адрес и нажмите «Сохранить и переподключиться», либо попробуйте ещё раз чуть позже."
                             statusIsError = true

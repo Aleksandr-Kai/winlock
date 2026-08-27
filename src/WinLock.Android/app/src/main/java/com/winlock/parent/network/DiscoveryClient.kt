@@ -6,7 +6,8 @@ import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import android.util.Log
 import com.winlock.parent.protocol.DiscoveryTxtRecord
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentLinkedQueue
 
 private const val ServiceType = "_winlock._tcp."
@@ -33,9 +34,17 @@ class DiscoveryClient(context: Context) {
     /** Browses for up to [timeoutMs], resolving whatever instances answer in that window.
      * Best-effort: a failed resolve for one instance doesn't lose the others, and this never
      * throws — an empty list just means nothing was found (or NSD isn't available), which the
-     * caller treats the same as "keep using whatever address is already saved". */
-    suspend fun discover(timeoutMs: Long = 5000L): List<DiscoveredDevice> {
+     * caller treats the same as "keep using whatever address is already saved".
+     *
+     * When [targetDeviceId] is given, this returns as soon as that specific device resolves
+     * instead of always waiting out the full timeout — a real mDNS response typically arrives
+     * in well under a second, and waiting the full window regardless made "Найти автоматически"
+     * feel broken (nothing visibly happens for 5s) even when it was working correctly. Left
+     * null, this still waits the full window — the periodic background scan wants to see
+     * every paired device that answers, not just the first one. */
+    suspend fun discover(timeoutMs: Long = 5000L, targetDeviceId: String? = null): List<DiscoveredDevice> {
         val found = ConcurrentLinkedQueue<DiscoveredDevice>()
+        val targetFound = CompletableDeferred<Unit>()
 
         // NsdManager is documented to not need this, but in practice — especially on
         // heavily-customized ROMs like MIUI — incoming multicast (what mDNS runs over) gets
@@ -94,6 +103,12 @@ class DiscoveryClient(context: Context) {
                                 }
                                 Log.d(LogTag, "Resolved $deviceId at $host:${info.port}")
                                 found.add(DiscoveredDevice(deviceId, "$host:${info.port}"))
+                                // Only a specifically-requested target short-circuits the wait —
+                                // a general scan (targetDeviceId == null) wants every device
+                                // that answers within the window, not just the first one.
+                                if (targetDeviceId != null && targetDeviceId == deviceId) {
+                                    targetFound.complete(Unit)
+                                }
                             }
                         },
                     )
@@ -110,9 +125,12 @@ class DiscoveryClient(context: Context) {
         }
 
         try {
-            Log.d(LogTag, "Starting discovery for $ServiceType (timeout=${timeoutMs}ms)")
+            Log.d(LogTag, "Starting discovery for $ServiceType (timeout=${timeoutMs}ms, target=$targetDeviceId)")
             nsdManager.discoverServices(ServiceType, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
-            delay(timeoutMs)
+            // targetFound only ever completes for a specifically-requested target (see
+            // onServiceResolved above), so with no target this simply waits out the full
+            // timeout — same as the old plain delay(timeoutMs).
+            withTimeoutOrNull(timeoutMs) { targetFound.await() }
         } catch (e: Exception) {
             // NSD can be unavailable on some devices/ROMs — fail safe to "nothing found".
             Log.w(LogTag, "discoverServices threw", e)
