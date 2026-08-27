@@ -13,5 +13,12 @@ fun Throwable.rootCauseMessage(): String {
         current = next
         current.message?.let { deepestWithMessage = it }
     }
-    return deepestWithMessage ?: current.javaClass.simpleName
+    val message = deepestWithMessage ?: current.javaClass.simpleName
+
+    // Our own exceptions (a rejected cert pin, a rejected auth) are already written in plain
+    // Russian for a parent to read directly. Anything else here is a raw OS/library
+    // exception — a socket timeout, a DNS failure — full of IPs, ports, and English that
+    // isn't meant for an end user; collapse those to one plain explanation instead of
+    // showing "failed to connect to /192.168.3.33 (port 51843) from ... after 10000ms".
+    return if (message.any { it in 'Ѐ'..'ӿ' }) message else "ПК не отвечает."
 }

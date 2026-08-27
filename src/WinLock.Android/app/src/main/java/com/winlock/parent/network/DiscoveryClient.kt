@@ -3,6 +3,7 @@ package com.winlock.parent.network
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
 import com.winlock.parent.protocol.DiscoveryTxtRecord
 import kotlinx.coroutines.delay
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -23,14 +24,31 @@ data class DiscoveredDevice(val deviceId: String, val hostAndPort: String)
  * consistent with this app never controlling a PC over anything but the local network.
  */
 class DiscoveryClient(context: Context) {
-    private val nsdManager = context.applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager
+    private val appContext = context.applicationContext
+    private val nsdManager = appContext.getSystemService(Context.NSD_SERVICE) as NsdManager
+    private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
     /** Browses for up to [timeoutMs], resolving whatever instances answer in that window.
      * Best-effort: a failed resolve for one instance doesn't lose the others, and this never
      * throws — an empty list just means nothing was found (or NSD isn't available), which the
      * caller treats the same as "keep using whatever address is already saved". */
-    suspend fun discover(timeoutMs: Long = 4000L): List<DiscoveredDevice> {
+    suspend fun discover(timeoutMs: Long = 5000L): List<DiscoveredDevice> {
         val found = ConcurrentLinkedQueue<DiscoveredDevice>()
+
+        // NsdManager is documented to not need this, but in practice — especially on
+        // heavily-customized ROMs like MIUI — incoming multicast (what mDNS runs over) gets
+        // silently dropped without an explicit WifiManager.MulticastLock held for the
+        // duration of the scan, and NsdManager doesn't take one on the app's behalf. Without
+        // this, discovery can run to completion, find nothing, and never surface an error —
+        // it just looks like the PC isn't there.
+        val multicastLock = wifiManager.createMulticastLock("winlock-discovery").apply {
+            setReferenceCounted(true)
+        }
+        try {
+            multicastLock.acquire()
+        } catch (e: Exception) {
+            // Best-effort — discovery still runs without it, just less reliably.
+        }
 
         val discoveryListener = object : NsdManager.DiscoveryListener {
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
@@ -73,6 +91,11 @@ class DiscoveryClient(context: Context) {
                 nsdManager.stopServiceDiscovery(discoveryListener)
             } catch (e: Exception) {
                 // Already stopped or never started — nothing to clean up.
+            }
+            try {
+                if (multicastLock.isHeld) multicastLock.release()
+            } catch (e: Exception) {
+                // Nothing more to do if release itself fails.
             }
         }
 
