@@ -23,15 +23,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.winlock.parent.data.DeviceStore
 import com.winlock.parent.model.PairedDevice
+import com.winlock.parent.network.DiscoveryClient
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,13 +47,34 @@ fun DeviceListScreen(
 ) {
     var devices by remember { mutableStateOf<List<PairedDevice>>(emptyList()) }
 
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
     // Reload every time this screen becomes visible again (e.g. after pairing a new device
-    // and navigating back) — not just once on first composition.
+    // and navigating back) — not just once on first composition. Also kicks off a silent
+    // network scan: if any already-paired PC's IP has drifted (new DHCP lease, different
+    // Wi-Fi), this picks up the new address on its own — no QR re-scan or manual edit
+    // needed. Best-effort only; a manual edit in the device's own screen and re-pairing via
+    // QR both still work exactly as before if this finds nothing.
     val lifecycleOwner = LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 devices = deviceStore.loadAll()
+                scope.launch {
+                    val found = DiscoveryClient(context).discover()
+                    if (found.isEmpty()) return@launch
+
+                    var anyUpdated = false
+                    deviceStore.loadAll().forEach { paired ->
+                        val discovered = found.firstOrNull { it.deviceId == paired.deviceId }
+                        if (discovered != null && discovered.hostAndPort != paired.hostAndPort) {
+                            deviceStore.add(paired.copy(hostAndPort = discovered.hostAndPort))
+                            anyUpdated = true
+                        }
+                    }
+                    if (anyUpdated) devices = deviceStore.loadAll()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

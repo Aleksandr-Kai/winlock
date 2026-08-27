@@ -41,6 +41,7 @@ import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.model.ScheduleConfig
 import com.winlock.parent.model.TimeWindow
 import com.winlock.parent.network.AgentConnection
+import com.winlock.parent.network.DiscoveryClient
 import com.winlock.parent.network.rootCauseMessage
 import com.winlock.parent.protocol.LockReasonText
 import com.winlock.parent.protocol.NetTimeSpan
@@ -203,9 +204,35 @@ fun DeviceDetailScreen(
 
             Text("Подключение", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
             Text(
-                "IP-адрес ПК может смениться (например, после перезагрузки роутера). Если приложение не может подключиться, укажите текущий адрес вручную вместо повторной привязки.",
+                "IP-адрес ПК может смениться (например, после перезагрузки роутера). Приложение " +
+                    "само ищет его в локальной сети при каждом открытии списка устройств; если это " +
+                    "не помогло — попробуйте найти именно этот ПК ниже, либо укажите адрес вручную.",
                 style = MaterialTheme.typography.bodySmall,
             )
+            Button(
+                onClick = {
+                    val current = device ?: return@Button
+                    scope.launch {
+                        statusMessage = "Ищем ПК в локальной сети..."
+                        statusIsError = false
+                        val discovered = DiscoveryClient(context).discover().firstOrNull { it.deviceId == current.deviceId }
+                        if (discovered == null) {
+                            statusMessage = "Не найден автоматически. Укажите IP вручную ниже, или используйте оффлайн-разблокировку."
+                            statusIsError = true
+                            return@launch
+                        }
+
+                        val updated = current.copy(hostAndPort = discovered.hostAndPort)
+                        deviceStore.add(updated)
+                        device = updated
+                        hostAndPortText = updated.hostAndPort
+                        startConnection(updated)
+                        statusMessage = "Найден по адресу ${discovered.hostAndPort}, переподключаемся..."
+                        statusIsError = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) { Text("Найти автоматически в сети") }
             OutlinedTextField(
                 value = hostAndPortText,
                 onValueChange = { hostAndPortText = it },

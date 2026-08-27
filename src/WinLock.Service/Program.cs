@@ -60,6 +60,19 @@ if (persisted.Pairing.CertificatePfx != pfxBytes)
 }
 var certificateFingerprintHex = DeviceCertificateProvider.ComputeFingerprintHex(certificate);
 
+// Best-effort: a phone falling back to a manually-entered address (or a fresh QR pairing)
+// still works if this never gets advertised, or the mDNS packets never make it across some
+// unusual network setup — so a failure here must never take the whole service down with it.
+DiscoveryBeacon? discoveryBeacon = null;
+try
+{
+    discoveryBeacon = new DiscoveryBeacon(runtime.DeviceId, runtime.DeviceDisplayName, NetworkPort);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Could not start network discovery advertising (non-fatal): {ex.Message}");
+}
+
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Listen(IPAddress.Any, NetworkPort, listenOptions => listenOptions.UseHttps(certificate));
@@ -152,5 +165,7 @@ app.Map("/agent/ws", async (HttpContext context, ControllerHub hub) =>
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
     await hub.HandleConnectionAsync(socket, context.RequestAborted);
 });
+
+app.Lifetime.ApplicationStopping.Register(() => discoveryBeacon?.Dispose());
 
 app.Run();
