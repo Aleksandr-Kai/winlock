@@ -45,6 +45,7 @@ import com.winlock.parent.network.DiscoveryClient
 import com.winlock.parent.protocol.AppVersion
 import com.winlock.parent.protocol.StatusUpdate
 import com.winlock.parent.protocol.VersionCompare
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -130,6 +131,13 @@ fun DeviceListScreen(
                             try {
                                 conn.connect()
                                 disconnected.await() // suspends until onDisconnected fires
+                            } catch (e: CancellationException) {
+                                // Leaving this screen (navigating to a device, backgrounding,
+                                // the device list changing) cancels every one of these loops
+                                // at once — that's not a lost connection, just us tearing
+                                // down, so it must not touch deviceStatuses. Rethrow so
+                                // structured concurrency still sees the cancellation.
+                                throw e
                             } catch (e: Exception) {
                                 deviceStatuses = deviceStatuses + (device.deviceId to null)
                             } finally {
