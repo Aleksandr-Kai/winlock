@@ -127,6 +127,15 @@ fun DeviceListScreen(
                             } catch (e: Exception) {
                                 deviceStatuses = deviceStatuses + (device.deviceId to null)
                             } finally {
+                                // conn.close() below triggers the exact same onClosed/
+                                // onDisconnected path as a real drop would — but this closure
+                                // is deliberate (navigating away, screen backgrounded, the
+                                // device list just changed), not an actual loss of
+                                // connection, so it must not flip the dot to red. Detach the
+                                // callbacks first so that self-inflicted close is a no-op for
+                                // the status map instead of erasing whatever was last known.
+                                conn.onStatus = null
+                                conn.onDisconnected = null
                                 conn.close()
                             }
 
