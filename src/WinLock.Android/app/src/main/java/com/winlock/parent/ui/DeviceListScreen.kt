@@ -38,10 +38,19 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.winlock.parent.data.DeviceStore
 import com.winlock.parent.model.PairedDevice
+import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.DiscoveryClient
+import com.winlock.parent.protocol.StatusUpdate
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-private val OnlineColor = Color(0xFF5CE65C)
+// Connected and unlocked: everything's fine. Connected but locked: reachable, just not
+// currently usable — worth calling out differently from "can't reach it at all". No
+// connection: can't tell what state the PC is actually in right now.
+private val OnlineUnlockedColor = Color(0xFF5CE65C)
+private val OnlineLockedColor = Color(0xFFF5A623)
 private val OfflineColor = Color(0xFFE5484D)
 private val ScanInterval = 15_000L
 
@@ -54,26 +63,24 @@ fun DeviceListScreen(
     onOfflineUnlock: () -> Unit,
 ) {
     var devices by remember { mutableStateOf<List<PairedDevice>>(emptyList()) }
-    var onlineDeviceIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var deviceStatuses by remember { mutableStateOf<Map<String, StatusUpdate?>>(emptyMap()) }
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // Reloads the list and re-scans the network on every resume, then keeps re-scanning every
     // 15s for as long as the screen stays in the foreground — repeatOnLifecycle pauses this
-    // automatically while backgrounded, so it doesn't burn battery/radio when nobody's
-    // looking at the screen. Each scan does two things: refreshes the online/offline dot for
-    // every paired device, and silently fixes any drifted IP (new DHCP lease, different
-    // Wi-Fi) — best-effort only; manual IP entry and QR re-pairing both still work exactly as
-    // before if a PC never answers.
+    // automatically while backgrounded. This scan only fixes a drifted IP (new DHCP lease,
+    // different Wi-Fi) silently in the background; it does NOT drive the status dot below —
+    // "found via mDNS" isn't the same thing as "actually connected and talking to it", which
+    // is what the dot needs to show. Best-effort only; manual IP entry and QR re-pairing both
+    // still work exactly as before if a PC never answers.
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 devices = deviceStore.loadAll()
 
                 val found = DiscoveryClient(context).discover()
-                onlineDeviceIds = found.map { it.deviceId }.toSet()
-
                 var anyUpdated = false
                 deviceStore.loadAll().forEach { paired ->
                     val discovered = found.firstOrNull { it.deviceId == paired.deviceId }
@@ -85,6 +92,38 @@ fun DeviceListScreen(
                 if (anyUpdated) devices = deviceStore.loadAll()
 
                 delay(ScanInterval)
+            }
+        }
+    }
+
+    // Drives the actual status dot: one live connection per paired device, kept open for as
+    // long as the screen is visible (paused while backgrounded, same as the scan above) and
+    // reopened whenever the device list changes (added/removed, or an IP just got fixed by
+    // the scan above). A device with no live connection is shown as offline outright — no
+    // partial credit for merely answering an mDNS query.
+    LaunchedEffect(lifecycleOwner, devices) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            val connections = devices.associate { device ->
+                device.deviceId to AgentConnection(device).also { conn ->
+                    conn.onStatus = { status -> deviceStatuses = deviceStatuses + (device.deviceId to status) }
+                    conn.onDisconnected = { deviceStatuses = deviceStatuses + (device.deviceId to null) }
+                }
+            }
+            try {
+                coroutineScope {
+                    connections.values.forEach { conn ->
+                        launch {
+                            try {
+                                conn.connect()
+                            } catch (e: Exception) {
+                                // Stays mapped to null (offline) — nothing more to do here.
+                            }
+                        }
+                    }
+                    awaitCancellation()
+                }
+            } finally {
+                connections.values.forEach { it.close() }
             }
         }
     }
@@ -126,12 +165,13 @@ fun DeviceListScreen(
                             headlineContent = { Text(device.displayName) },
                             supportingContent = { Text(device.hostAndPort) },
                             trailingContent = {
-                                val online = device.deviceId in onlineDeviceIds
-                                Box(
-                                    modifier = Modifier
-                                        .size(12.dp)
-                                        .background(if (online) OnlineColor else OfflineColor, CircleShape),
-                                )
+                                val status = deviceStatuses[device.deviceId]
+                                val color = when {
+                                    status == null -> OfflineColor
+                                    status.isLocked -> OnlineLockedColor
+                                    else -> OnlineUnlockedColor
+                                }
+                                Box(modifier = Modifier.size(12.dp).background(color, CircleShape))
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
