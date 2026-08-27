@@ -121,6 +121,18 @@ function Grant-FirewallRule {
     New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP `
         -LocalPort $NetworkPort -Action Allow `
         -Program (Join-Path $InstallDir 'WinLock.Service.exe') | Out-Null
+
+    # Without this, a phone's mDNS query for _winlock._tcp.local never reaches the PC —
+    # Windows Firewall blocks unsolicited inbound UDP by default, so "find automatically"
+    # would silently find nothing even though the PC is advertising just fine.
+    $mdnsRuleName = 'WinLock Agent (mDNS discovery)'
+    if (Get-NetFirewallRule -DisplayName $mdnsRuleName -ErrorAction SilentlyContinue) {
+        Remove-NetFirewallRule -DisplayName $mdnsRuleName
+    }
+    Write-Host "Открываем порт 5353/UDP для автообнаружения ПК в локальной сети (mDNS)..."
+    New-NetFirewallRule -DisplayName $mdnsRuleName -Direction Inbound -Protocol UDP `
+        -LocalPort 5353 -Action Allow `
+        -Program (Join-Path $InstallDir 'WinLock.Service.exe') | Out-Null
 }
 
 function New-PairingShortcut {

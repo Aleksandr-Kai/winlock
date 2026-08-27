@@ -17,7 +17,9 @@ public static class Installer
     public const string ServiceName = "WinLock Agent";
     private const string ServiceDescription = "Контроль и ограничение времени использования компьютера. Не останавливайте эту службу.";
     private const string FirewallRuleName = "WinLock Agent";
+    private const string MdnsFirewallRuleName = "WinLock Agent (mDNS discovery)";
     private const int NetworkPort = 51843;
+    private const int MdnsPort = 5353;
 
     public static string InstallDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinLock");
@@ -148,5 +150,16 @@ public static class Installer
         ProcessRunner.Run("netsh.exe", "advfirewall", "firewall", "add", "rule",
             $"name={FirewallRuleName}", "dir=in", "action=allow", "protocol=TCP",
             $"localport={NetworkPort}", $"program={programPath}", "enable=yes");
+
+        // Without this, a phone's mDNS query for _winlock._tcp.local never reaches the PC at
+        // all — Windows Firewall blocks unsolicited inbound UDP by default, and that block
+        // applies to our own multicast socket the same as anything else. DiscoveryBeacon can
+        // send its own advertisements out fine either way (outbound is normally allowed), but
+        // without this rule nobody's *query* gets through, so "find automatically" silently
+        // finds nothing even though the PC is advertising.
+        ProcessRunner.Run("netsh.exe", "advfirewall", "firewall", "delete", "rule", $"name={MdnsFirewallRuleName}");
+        ProcessRunner.Run("netsh.exe", "advfirewall", "firewall", "add", "rule",
+            $"name={MdnsFirewallRuleName}", "dir=in", "action=allow", "protocol=UDP",
+            $"localport={MdnsPort}", $"program={programPath}", "enable=yes");
     }
 }

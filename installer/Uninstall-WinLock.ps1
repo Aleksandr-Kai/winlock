@@ -38,8 +38,11 @@ if ($existing) {
 }
 
 if (Get-NetFirewallRule -DisplayName 'WinLock Agent' -ErrorAction SilentlyContinue) {
-    Write-Host "Удаляем правило брандмауэра..."
+    Write-Host "Удаляем правила брандмауэра..."
     Remove-NetFirewallRule -DisplayName 'WinLock Agent'
+}
+if (Get-NetFirewallRule -DisplayName 'WinLock Agent (mDNS discovery)' -ErrorAction SilentlyContinue) {
+    Remove-NetFirewallRule -DisplayName 'WinLock Agent (mDNS discovery)'
 }
 
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('CommonStartMenu')) 'WinLock — Настройка.lnk'

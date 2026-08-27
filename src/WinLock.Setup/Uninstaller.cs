@@ -15,8 +15,9 @@ public static class Uninstaller
             log.Report($"Служба '{Installer.ServiceName}' не найдена — пропускаем.");
         }
 
-        log.Report("Удаляем правило брандмауэра...");
+        log.Report("Удаляем правила брандмауэра...");
         ProcessRunner.Run("netsh.exe", "advfirewall", "firewall", "delete", "rule", "name=WinLock Agent");
+        ProcessRunner.Run("netsh.exe", "advfirewall", "firewall", "delete", "rule", "name=WinLock Agent (mDNS discovery)");
 
         log.Report("Удаляем ярлык из меню Пуск...");
         ShortcutCreator.RemovePairingShortcut();
