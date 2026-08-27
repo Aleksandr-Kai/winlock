@@ -17,6 +17,7 @@ public class NetworkMessageSerializationTests
             new CommandAck("req-1", false, "nope"),
             new ScreenshotResult("req-2", true, null, "base64==", DateTimeOffset.UtcNow),
             new StateRecoveryWarning(DateTimeOffset.UtcNow, "IOException: disk hiccup"),
+            new AgentVersionInfo("1.0.0"),
         ];
 
         foreach (var message in messages)

@@ -75,6 +75,7 @@ public sealed class ControllerHub : IAgentStatusPublisher
             _logger.LogInformation("Controller '{Name}' ({Id}) connected.", controller.DisplayName, controller.ControllerId);
 
             await SendAsync(state, BuildStatus(_runtime.Evaluate()), ct); // bring it up to date immediately
+            await SendAsync(state, new AgentVersionInfo(AgentVersion.Current), ct);
             await SendAsync(state, new ScheduleSnapshot(_runtime.CurrentSchedule), ct);
             if (_runtime.PendingStateRecoveryIncident is { } incident)
                 await SendAsync(state, new StateRecoveryWarning(incident.OccurredAtUtc, incident.Reason), ct);

@@ -4,6 +4,7 @@ import com.winlock.parent.crypto.ControllerAuthenticator
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.model.ScheduleConfig
 import com.winlock.parent.protocol.AcknowledgeStateRecoveryCommand
+import com.winlock.parent.protocol.AgentVersionInfo
 import com.winlock.parent.protocol.AuthChallenge
 import com.winlock.parent.protocol.AuthResponse
 import com.winlock.parent.protocol.AuthResult
@@ -45,6 +46,7 @@ class AgentConnection(private val device: PairedDevice) {
     var onStatus: ((StatusUpdate) -> Unit)? = null
     var onSchedule: ((ScheduleConfig) -> Unit)? = null
     var onStateRecoveryWarning: ((StateRecoveryWarning) -> Unit)? = null
+    var onVersion: ((String) -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
 
     private var client: OkHttpClient? = null
@@ -92,6 +94,7 @@ class AgentConnection(private val device: PairedDevice) {
                         is StatusUpdate -> onStatus?.invoke(message)
                         is ScheduleSnapshot -> onSchedule?.invoke(message.schedule)
                         is StateRecoveryWarning -> onStateRecoveryWarning?.invoke(message)
+                        is AgentVersionInfo -> onVersion?.invoke(message.version)
                         is CommandAck -> pending.remove(message.requestId)?.resume(message)
                         is ScreenshotResult -> pending.remove(message.requestId)?.resume(message)
                     }

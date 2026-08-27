@@ -19,6 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -40,7 +42,9 @@ import com.winlock.parent.data.DeviceStore
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.DiscoveryClient
+import com.winlock.parent.protocol.AppVersion
 import com.winlock.parent.protocol.StatusUpdate
+import com.winlock.parent.protocol.VersionCompare
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -65,6 +69,7 @@ fun DeviceListScreen(
 ) {
     var devices by remember { mutableStateOf<List<PairedDevice>>(emptyList()) }
     var deviceStatuses by remember { mutableStateOf<Map<String, StatusUpdate?>>(emptyMap()) }
+    var deviceVersions by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -116,6 +121,7 @@ fun DeviceListScreen(
                             val conn = AgentConnection(device)
                             val disconnected = CompletableDeferred<Unit>()
                             conn.onStatus = { status -> deviceStatuses = deviceStatuses + (device.deviceId to status) }
+                            conn.onVersion = { version -> deviceVersions = deviceVersions + (device.deviceId to version) }
                             conn.onDisconnected = {
                                 deviceStatuses = deviceStatuses + (device.deviceId to null)
                                 disconnected.complete(Unit)
@@ -182,7 +188,18 @@ fun DeviceListScreen(
                     items(devices, key = { it.deviceId }) { device ->
                         ListItem(
                             headlineContent = { Text(device.displayName) },
-                            supportingContent = { Text(device.hostAndPort) },
+                            supportingContent = {
+                                val version = deviceVersions[device.deviceId]
+                                if (version == null) {
+                                    Text(device.hostAndPort)
+                                } else {
+                                    val outdated = !VersionCompare.isAtLeast(version, AppVersion.MinCompatibleAgentVersion)
+                                    Text(
+                                        "${device.hostAndPort} · v$version",
+                                        color = if (outdated) OfflineColor else Color.Unspecified,
+                                    )
+                                }
+                            },
                             trailingContent = {
                                 val status = deviceStatuses[device.deviceId]
                                 val color = when {
@@ -199,6 +216,18 @@ fun DeviceListScreen(
                     }
                 }
             }
+
+            // A parent can't open every device just to check for outdated PC versions — this
+            // is the one number that's always visible regardless: the app's own version, and
+            // the oldest PC-agent version it still speaks to, so a mismatch against what's
+            // shown on a device row above points at whichever side actually needs updating.
+            Text(
+                "WinLock v${AppVersion.Current} (мин. версия ПК: v${AppVersion.MinCompatibleAgentVersion})",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

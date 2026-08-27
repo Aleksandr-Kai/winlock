@@ -84,6 +84,14 @@ data class StateRecoveryWarning(
     @SerialName("Reason") val reason: String,
 ) : ServerToControllerMessage()
 
+/** The PC agent's version — sent once right after authenticating, the only way this app can
+ * tell whether a given PC needs updating without walking up to it. */
+@Serializable
+@SerialName("agentVersion")
+data class AgentVersionInfo(
+    @SerialName("Version") val version: String,
+) : ServerToControllerMessage()
+
 @Serializable
 sealed class ControllerToServerMessage
 

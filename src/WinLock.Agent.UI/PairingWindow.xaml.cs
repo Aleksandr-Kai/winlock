@@ -19,6 +19,10 @@ public partial class PairingWindow : Window
     public PairingWindow()
     {
         InitializeComponent();
+        // WinLock.Agent.UI and WinLock.Service are always built and shipped together (see
+        // installer/build-payload.sh) — no IPC round trip needed to know the service's
+        // version, this process already links the same WinLock.Core it does.
+        VersionText.Text = $"Версия ПК-агента: {WinLock.Core.AgentVersion.Current}";
         Loaded += OnLoaded;
         Closing += OnClosing;
     }
