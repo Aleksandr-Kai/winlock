@@ -124,7 +124,7 @@ fun DeviceSettingsScreen(
                         statusIsError = false
                         val discovered = DiscoveryClient(context).discover().firstOrNull { it.deviceId == current.deviceId }
                         if (discovered == null) {
-                            statusMessage = "Не найден автоматически. Укажите IP вручную ниже, или используйте оффлайн-разблокировку."
+                            statusMessage = "Не найден автоматически. Проверьте IP-адрес ниже (или попробуйте ещё раз чуть позже) и нажмите «Сохранить и переподключиться»."
                             statusIsError = true
                             return@launch
                         }
