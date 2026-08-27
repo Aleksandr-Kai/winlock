@@ -41,9 +41,10 @@ import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.DiscoveryClient
 import com.winlock.parent.protocol.StatusUpdate
-import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // Connected and unlocked: everything's fine. Connected but locked: reachable, just not
@@ -101,29 +102,38 @@ fun DeviceListScreen(
     // reopened whenever the device list changes (added/removed, or an IP just got fixed by
     // the scan above). A device with no live connection is shown as offline outright — no
     // partial credit for merely answering an mDNS query.
+    //
+    // Each device's connection is its own retry loop: once it drops (the PC went to sleep,
+    // Wi-Fi hiccup), nothing here waits around for a lucky reconnect — it just tries again
+    // every 15s until it's back. Without this, a single failed attempt would leave the dot
+    // red forever even after the PC wakes back up.
     LaunchedEffect(lifecycleOwner, devices) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            val connections = devices.associate { device ->
-                device.deviceId to AgentConnection(device).also { conn ->
-                    conn.onStatus = { status -> deviceStatuses = deviceStatuses + (device.deviceId to status) }
-                    conn.onDisconnected = { deviceStatuses = deviceStatuses + (device.deviceId to null) }
-                }
-            }
-            try {
-                coroutineScope {
-                    connections.values.forEach { conn ->
-                        launch {
+            coroutineScope {
+                devices.forEach { device ->
+                    launch {
+                        while (isActive) {
+                            val conn = AgentConnection(device)
+                            val disconnected = CompletableDeferred<Unit>()
+                            conn.onStatus = { status -> deviceStatuses = deviceStatuses + (device.deviceId to status) }
+                            conn.onDisconnected = {
+                                deviceStatuses = deviceStatuses + (device.deviceId to null)
+                                disconnected.complete(Unit)
+                            }
+
                             try {
                                 conn.connect()
+                                disconnected.await() // suspends until onDisconnected fires
                             } catch (e: Exception) {
-                                // Stays mapped to null (offline) — nothing more to do here.
+                                deviceStatuses = deviceStatuses + (device.deviceId to null)
+                            } finally {
+                                conn.close()
                             }
+
+                            delay(ScanInterval)
                         }
                     }
-                    awaitCancellation()
                 }
-            } finally {
-                connections.values.forEach { it.close() }
             }
         }
     }
