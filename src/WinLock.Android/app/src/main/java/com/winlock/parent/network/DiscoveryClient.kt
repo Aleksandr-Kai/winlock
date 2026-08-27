@@ -4,11 +4,13 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
+import android.util.Log
 import com.winlock.parent.protocol.DiscoveryTxtRecord
 import kotlinx.coroutines.delay
 import java.util.concurrent.ConcurrentLinkedQueue
 
 private const val ServiceType = "_winlock._tcp."
+private const val LogTag = "WinLockDiscovery"
 
 data class DiscoveredDevice(val deviceId: String, val hostAndPort: String)
 
@@ -46,17 +48,28 @@ class DiscoveryClient(context: Context) {
         }
         try {
             multicastLock.acquire()
+            Log.d(LogTag, "multicastLock acquired: held=${multicastLock.isHeld}")
         } catch (e: Exception) {
             // Best-effort — discovery still runs without it, just less reliably.
+            Log.w(LogTag, "multicastLock.acquire() threw", e)
         }
 
         val discoveryListener = object : NsdManager.DiscoveryListener {
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
-            override fun onDiscoveryStarted(serviceType: String) {}
-            override fun onDiscoveryStopped(serviceType: String) {}
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                Log.w(LogTag, "onStartDiscoveryFailed: serviceType=$serviceType errorCode=$errorCode")
+            }
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
+                Log.w(LogTag, "onStopDiscoveryFailed: serviceType=$serviceType errorCode=$errorCode")
+            }
+            override fun onDiscoveryStarted(serviceType: String) {
+                Log.d(LogTag, "onDiscoveryStarted: serviceType=$serviceType")
+            }
+            override fun onDiscoveryStopped(serviceType: String) {
+                Log.d(LogTag, "onDiscoveryStopped: serviceType=$serviceType")
+            }
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+                Log.d(LogTag, "onServiceFound: $serviceInfo")
                 try {
                     // A fresh ResolveListener per call — NsdManager rejects reusing one that's
                     // still in flight, which a single shared instance would hit as soon as a
@@ -64,10 +77,22 @@ class DiscoveryClient(context: Context) {
                     nsdManager.resolveService(
                         serviceInfo,
                         object : NsdManager.ResolveListener {
-                            override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {}
+                            override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {
+                                Log.w(LogTag, "onResolveFailed: info=$info errorCode=$errorCode")
+                            }
                             override fun onServiceResolved(info: NsdServiceInfo) {
-                                val deviceId = DiscoveryTxtRecord.parseDeviceId(info.attributes) ?: return
-                                val host = info.host?.hostAddress ?: return
+                                Log.d(LogTag, "onServiceResolved: $info attributes=${info.attributes.keys}")
+                                val deviceId = DiscoveryTxtRecord.parseDeviceId(info.attributes)
+                                if (deviceId == null) {
+                                    Log.w(LogTag, "onServiceResolved: no usable deviceId in TXT record")
+                                    return
+                                }
+                                val host = info.host?.hostAddress
+                                if (host == null) {
+                                    Log.w(LogTag, "onServiceResolved: no resolved host address")
+                                    return
+                                }
+                                Log.d(LogTag, "Resolved $deviceId at $host:${info.port}")
                                 found.add(DiscoveredDevice(deviceId, "$host:${info.port}"))
                             }
                         },
@@ -75,17 +100,22 @@ class DiscoveryClient(context: Context) {
                 } catch (e: Exception) {
                     // Resolve can legitimately fail to even start (service vanished between
                     // found and resolve) — skip this one instance, keep scanning.
+                    Log.w(LogTag, "resolveService threw", e)
                 }
             }
 
-            override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
+            override fun onServiceLost(serviceInfo: NsdServiceInfo) {
+                Log.d(LogTag, "onServiceLost: $serviceInfo")
+            }
         }
 
         try {
+            Log.d(LogTag, "Starting discovery for $ServiceType (timeout=${timeoutMs}ms)")
             nsdManager.discoverServices(ServiceType, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
             delay(timeoutMs)
         } catch (e: Exception) {
             // NSD can be unavailable on some devices/ROMs — fail safe to "nothing found".
+            Log.w(LogTag, "discoverServices threw", e)
         } finally {
             try {
                 nsdManager.stopServiceDiscovery(discoveryListener)
@@ -99,6 +129,8 @@ class DiscoveryClient(context: Context) {
             }
         }
 
-        return found.distinctBy { it.deviceId }
+        val result = found.distinctBy { it.deviceId }
+        Log.d(LogTag, "discover() finished: found ${result.size} device(s): $result")
+        return result
     }
 }
