@@ -1,5 +1,6 @@
 package com.winlock.parent.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,8 +8,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
@@ -20,22 +23,27 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.winlock.parent.data.DeviceStore
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.network.DiscoveryClient
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+
+private val OnlineColor = Color(0xFF5CE65C)
+private val OfflineColor = Color(0xFFE5484D)
+private val ScanInterval = 15_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,39 +54,39 @@ fun DeviceListScreen(
     onOfflineUnlock: () -> Unit,
 ) {
     var devices by remember { mutableStateOf<List<PairedDevice>>(emptyList()) }
+    var onlineDeviceIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
-
-    // Reload every time this screen becomes visible again (e.g. after pairing a new device
-    // and navigating back) — not just once on first composition. Also kicks off a silent
-    // network scan: if any already-paired PC's IP has drifted (new DHCP lease, different
-    // Wi-Fi), this picks up the new address on its own — no QR re-scan or manual edit
-    // needed. Best-effort only; a manual edit in the device's own screen and re-pairing via
-    // QR both still work exactly as before if this finds nothing.
     val lifecycleOwner = LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                devices = deviceStore.loadAll()
-                scope.launch {
-                    val found = DiscoveryClient(context).discover()
-                    if (found.isEmpty()) return@launch
 
-                    var anyUpdated = false
-                    deviceStore.loadAll().forEach { paired ->
-                        val discovered = found.firstOrNull { it.deviceId == paired.deviceId }
-                        if (discovered != null && discovered.hostAndPort != paired.hostAndPort) {
-                            deviceStore.add(paired.copy(hostAndPort = discovered.hostAndPort))
-                            anyUpdated = true
-                        }
+    // Reloads the list and re-scans the network on every resume, then keeps re-scanning every
+    // 15s for as long as the screen stays in the foreground — repeatOnLifecycle pauses this
+    // automatically while backgrounded, so it doesn't burn battery/radio when nobody's
+    // looking at the screen. Each scan does two things: refreshes the online/offline dot for
+    // every paired device, and silently fixes any drifted IP (new DHCP lease, different
+    // Wi-Fi) — best-effort only; manual IP entry and QR re-pairing both still work exactly as
+    // before if a PC never answers.
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                devices = deviceStore.loadAll()
+
+                val found = DiscoveryClient(context).discover()
+                onlineDeviceIds = found.map { it.deviceId }.toSet()
+
+                var anyUpdated = false
+                deviceStore.loadAll().forEach { paired ->
+                    val discovered = found.firstOrNull { it.deviceId == paired.deviceId }
+                    if (discovered != null && discovered.hostAndPort != paired.hostAndPort) {
+                        deviceStore.add(paired.copy(hostAndPort = discovered.hostAndPort))
+                        anyUpdated = true
                     }
-                    if (anyUpdated) devices = deviceStore.loadAll()
                 }
+                if (anyUpdated) devices = deviceStore.loadAll()
+
+                delay(ScanInterval)
             }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Scaffold(
@@ -117,6 +125,14 @@ fun DeviceListScreen(
                         ListItem(
                             headlineContent = { Text(device.displayName) },
                             supportingContent = { Text(device.hostAndPort) },
+                            trailingContent = {
+                                val online = device.deviceId in onlineDeviceIds
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(if (online) OnlineColor else OfflineColor, CircleShape),
+                                )
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onOpenDevice(device.deviceId) },
