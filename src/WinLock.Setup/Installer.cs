@@ -6,11 +6,10 @@ namespace WinLock.Setup;
 public sealed class InstallException(string message) : Exception(message);
 
 /// <summary>
-/// Everything Install-WinLock.ps1 used to do, minus the console: copies the payload into
-/// Program Files, locks down %ProgramData%\WinLock, registers (or, if it's already there,
-/// updates in place) the "WinLock Agent" service, opens the firewall, adds the pairing
-/// shortcut, and starts the service. Runs entirely from this already-elevated GUI process —
-/// no PowerShell, no execution-policy prompts, no separate "Run as administrator" step.
+/// Copies the payload into Program Files, locks down %ProgramData%\WinLock, registers (or,
+/// if it's already there, updates in place) the "WinLock Agent" service, opens the firewall,
+/// adds the pairing shortcut, and starts the service. Runs entirely from this already-
+/// elevated GUI process — no PowerShell, no console, no separate "Run as administrator" step.
 /// </summary>
 public static class Installer
 {

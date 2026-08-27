@@ -5,6 +5,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.SSLContext
 import javax.net.ssl.X509TrustManager
@@ -57,6 +58,13 @@ object CertificatePinning {
         return OkHttpClient.Builder()
             .sslSocketFactory(sslContext.socketFactory, trustManager)
             .hostnameVerifier(HostnameVerifier { _, _ -> true })
+            // Without this, a WebSocket to a PC that goes to sleep (not closed, not
+            // rejecting — just silently unresponsive) can sit there looking "connected" for
+            // a very long time: nothing ever arrives to trigger a read timeout, and the
+            // underlying TCP stack's own dead-peer detection defaults to roughly two hours.
+            // A ping this often means a sleeping/unreachable PC gets noticed — and the
+            // device-list status dot turns red — within a few tens of seconds instead.
+            .pingInterval(10, TimeUnit.SECONDS)
             .build()
     }
 }
