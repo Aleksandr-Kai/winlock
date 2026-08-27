@@ -14,12 +14,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -39,6 +44,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.winlock.parent.data.DeviceStore
+import com.winlock.parent.data.ThemeMode
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.DiscoveryClient
@@ -67,8 +73,11 @@ fun DeviceListScreen(
     onAddDevice: () -> Unit,
     onOpenDevice: (String) -> Unit,
     onOfflineUnlock: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
 ) {
     var devices by remember { mutableStateOf<List<PairedDevice>>(emptyList()) }
+    var showMenu by remember { mutableStateOf(false) }
     var deviceStatuses by remember { mutableStateOf<Map<String, StatusUpdate?>>(emptyMap()) }
     var deviceVersions by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
@@ -162,7 +171,41 @@ fun DeviceListScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("WinLock") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("WinLock") },
+                actions = {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "Настройки приложения")
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        Text(
+                            "Тема оформления",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                        val options = listOf(
+                            ThemeMode.SYSTEM to "Системная",
+                            ThemeMode.LIGHT to "Светлая",
+                            ThemeMode.DARK to "Тёмная",
+                        )
+                        options.forEach { (mode, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                leadingIcon = {
+                                    RadioButton(selected = themeMode == mode, onClick = null)
+                                },
+                                onClick = {
+                                    onThemeModeChange(mode)
+                                    showMenu = false
+                                },
+                            )
+                        }
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddDevice) {
                 Icon(Icons.Filled.Add, contentDescription = "Привязать ПК")
