@@ -31,6 +31,7 @@ import com.winlock.parent.data.DeviceStore
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.DiscoveryClient
+import com.winlock.parent.network.rootCauseMessage
 import kotlinx.coroutines.launch
 
 /** Everything about a paired PC that isn't day-to-day control: fixing its address, and
@@ -60,9 +61,11 @@ fun DeviceSettingsScreen(
         scope.launch {
             try {
                 conn.connect()
+                statusMessage = "Подключено."
+                statusIsError = false
             } catch (e: Exception) {
-                // This screen doesn't show a live connection label — just used to verify a
-                // freshly saved/discovered address actually works.
+                statusMessage = "Не удалось подключиться: ${e.rootCauseMessage()}"
+                statusIsError = true
             }
         }
     }
