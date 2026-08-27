@@ -11,6 +11,7 @@ namespace WinLock.Core.Network;
 [JsonDerivedType(typeof(CommandAck), "ack")]
 [JsonDerivedType(typeof(ScreenshotResult), "screenshotResult")]
 [JsonDerivedType(typeof(ScheduleSnapshot), "scheduleSnapshot")]
+[JsonDerivedType(typeof(StateRecoveryWarning), "stateRecoveryWarning")]
 public abstract record ServerToControllerMessage;
 
 /// <summary>Sent immediately on connect, before anything else is accepted.</summary>
@@ -46,3 +47,9 @@ public sealed record ScreenshotResult(
 /// changes it — so a second parent's app doesn't keep showing a stale schedule, and a
 /// freshly opened app doesn't show empty/default fields for a device that already has one.</summary>
 public sealed record ScheduleSnapshot(ScheduleConfig Schedule) : ServerToControllerMessage;
+
+/// <summary>The PC had to fall back to a fresh, empty state because the previously persisted
+/// one was unreadable — schedule, pairings, and certificate were all reset at once. Sent to
+/// every controller on connect until a parent acknowledges it with AcknowledgeStateRecoveryCommand,
+/// since none may have been connected at the moment it happened.</summary>
+public sealed record StateRecoveryWarning(DateTimeOffset OccurredAtUtc, string Reason) : ServerToControllerMessage;

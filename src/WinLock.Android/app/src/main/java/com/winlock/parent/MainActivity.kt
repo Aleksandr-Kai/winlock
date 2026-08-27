@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
                                 deviceStore = deviceStore,
                                 onAddDevice = { navController.navigate("addDevice") },
                                 onOpenDevice = { deviceId -> navController.navigate("device/$deviceId") },
+                                onOfflineUnlock = { navController.navigate("offline") },
                             )
                         }
                         composable("addDevice") {
@@ -52,16 +53,10 @@ class MainActivity : ComponentActivity() {
                                 deviceId = deviceId,
                                 deviceStore = deviceStore,
                                 onBack = { navController.popBackStack() },
-                                onOfflineUnlock = { navController.navigate("offline/$deviceId") },
                             )
                         }
-                        composable(
-                            "offline/{deviceId}",
-                            arguments = listOf(navArgument("deviceId") { type = NavType.StringType }),
-                        ) { backStackEntry ->
-                            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: return@composable
+                        composable("offline") {
                             OfflineUnlockScreen(
-                                deviceId = deviceId,
                                 deviceStore = deviceStore,
                                 onBack = { navController.popBackStack() },
                             )

@@ -73,6 +73,17 @@ data class ScheduleSnapshot(
     @SerialName("Schedule") val schedule: ScheduleConfig,
 ) : ServerToControllerMessage()
 
+/** The PC had to fall back to a fresh, empty state because the previously persisted one was
+ * unreadable — schedule, pairings, and certificate were all reset at once. Sent on connect
+ * until acknowledged with [AcknowledgeStateRecoveryCommand], since no phone may have been
+ * connected at the moment it actually happened. */
+@Serializable
+@SerialName("stateRecoveryWarning")
+data class StateRecoveryWarning(
+    @SerialName("OccurredAtUtc") val occurredAtUtc: String,
+    @SerialName("Reason") val reason: String,
+) : ServerToControllerMessage()
+
 @Serializable
 sealed class ControllerToServerMessage
 
@@ -87,6 +98,15 @@ data class AuthResponse(
 @Serializable
 @SerialName("extendTime")
 data class ExtendTimeCommand(
+    @SerialName("RequestId") val requestId: String,
+    @SerialName("Minutes") val minutes: Int,
+) : ControllerToServerMessage()
+
+/** Sets today's remaining budget to an exact value, instead of adding to whatever is
+ * currently left. */
+@Serializable
+@SerialName("setRemainingTime")
+data class SetRemainingTimeCommand(
     @SerialName("RequestId") val requestId: String,
     @SerialName("Minutes") val minutes: Int,
 ) : ControllerToServerMessage()
@@ -115,6 +135,13 @@ data class LockNowCommand(
 @Serializable
 @SerialName("unlockNow")
 data class UnlockNowCommand(
+    @SerialName("RequestId") val requestId: String,
+) : ControllerToServerMessage()
+
+/** Clears a pending [StateRecoveryWarning] once a parent has seen it. */
+@Serializable
+@SerialName("acknowledgeStateRecovery")
+data class AcknowledgeStateRecoveryCommand(
     @SerialName("RequestId") val requestId: String,
 ) : ControllerToServerMessage()
 

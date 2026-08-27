@@ -43,7 +43,7 @@ if (string.IsNullOrWhiteSpace(persisted.Pairing.DeviceDisplayName))
     persisted.Pairing.DeviceDisplayName = Environment.MachineName;
 
 var tracker = new UsageTracker(new SystemMonotonicClock(), persisted.Schedule, persisted.Usage);
-var runtime = new AgentRuntime(tracker, persisted.Schedule, persisted.Pairing, persisted.Offline);
+var runtime = new AgentRuntime(tracker, persisted.Schedule, persisted.Pairing, persisted.Offline, persisted.PendingStateRecoveryIncident);
 
 builder.Services.AddSingleton(runtime);
 builder.Services.AddSingleton<IStateStore>(stateStore);

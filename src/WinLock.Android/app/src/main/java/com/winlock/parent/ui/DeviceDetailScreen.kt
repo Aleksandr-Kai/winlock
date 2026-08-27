@@ -1,5 +1,6 @@
 package com.winlock.parent.ui
 
+import android.app.TimePickerDialog
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,7 @@ import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.rootCauseMessage
 import com.winlock.parent.protocol.LockReasonText
 import com.winlock.parent.protocol.NetTimeSpan
+import com.winlock.parent.protocol.StateRecoveryWarning
 import com.winlock.parent.protocol.StatusUpdate
 import kotlinx.coroutines.launch
 
@@ -56,9 +59,9 @@ fun DeviceDetailScreen(
     deviceId: String,
     deviceStore: DeviceStore,
     onBack: () -> Unit,
-    onOfflineUnlock: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var device by remember { mutableStateOf<PairedDevice?>(null) }
     var connection by remember { mutableStateOf<AgentConnection?>(null) }
     var connectionLabel by remember { mutableStateOf("Подключение...") }
@@ -67,44 +70,76 @@ fun DeviceDetailScreen(
     var statusIsError by remember { mutableStateOf(false) }
     var showForgetDialog by remember { mutableStateOf(false) }
     var screenshotBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var hostAndPortText by remember { mutableStateOf("") }
+    var stateRecoveryWarning by remember { mutableStateOf<StateRecoveryWarning?>(null) }
 
     val dayChecks = remember { mutableStateMapOf(*Days.map { it.first to false }.toTypedArray()) }
     var startTime by remember { mutableStateOf("08:00") }
     var endTime by remember { mutableStateOf("20:00") }
     var dailyLimitText by remember { mutableStateOf("120") }
 
+    fun startConnection(target: PairedDevice) {
+        connection?.close()
+        connectionLabel = "Подключение..."
+        status = null
+
+        val conn = AgentConnection(target)
+        connection = conn
+        conn.onStatus = { status = it }
+        conn.onSchedule = { schedule ->
+            Days.forEach { (key, _) -> dayChecks[key] = schedule.allowedWindows[key]?.isNotEmpty() == true }
+            val firstWindow = schedule.allowedWindows.values.firstOrNull { it.isNotEmpty() }?.firstOrNull()
+            if (firstWindow != null) {
+                startTime = firstWindow.start.take(5) // "08:00:00" -> "08:00"
+                endTime = firstWindow.end.take(5)
+            }
+            if (schedule.isConfigured) {
+                dailyLimitText = schedule.dailyLimitMinutes.toString()
+            }
+        }
+        conn.onStateRecoveryWarning = { stateRecoveryWarning = it }
+        conn.onDisconnected = { connectionLabel = "Соединение потеряно" }
+        scope.launch {
+            try {
+                conn.connect()
+                connectionLabel = "Онлайн"
+            } catch (e: Exception) {
+                connectionLabel = "Не удалось подключиться: ${e.rootCauseMessage()}"
+            }
+        }
+    }
+
     DisposableEffect(deviceId) {
         val loaded = deviceStore.loadAll().firstOrNull { it.deviceId == deviceId }
         device = loaded
+        hostAndPortText = loaded?.hostAndPort ?: ""
+        if (loaded != null) startConnection(loaded)
 
-        var conn: AgentConnection? = null
-        if (loaded != null) {
-            conn = AgentConnection(loaded)
-            connection = conn
-            conn.onStatus = { status = it }
-            conn.onSchedule = { schedule ->
-                Days.forEach { (key, _) -> dayChecks[key] = schedule.allowedWindows[key]?.isNotEmpty() == true }
-                val firstWindow = schedule.allowedWindows.values.firstOrNull { it.isNotEmpty() }?.firstOrNull()
-                if (firstWindow != null) {
-                    startTime = firstWindow.start.take(5) // "08:00:00" -> "08:00"
-                    endTime = firstWindow.end.take(5)
-                }
-                if (schedule.isConfigured) {
-                    dailyLimitText = schedule.dailyLimitMinutes.toString()
-                }
-            }
-            conn.onDisconnected = { connectionLabel = "Соединение потеряно" }
-            scope.launch {
-                try {
-                    conn.connect()
-                    connectionLabel = "Онлайн"
-                } catch (e: Exception) {
-                    connectionLabel = "Не удалось подключиться: ${e.rootCauseMessage()}"
-                }
-            }
-        }
+        onDispose { connection?.close() }
+    }
 
-        onDispose { conn?.close() }
+    stateRecoveryWarning?.let { warning ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("⚠ Данные на ПК были сброшены") },
+            text = {
+                Text(
+                    "На компьютере не удалось прочитать сохранённые данные, и он начал с чистого " +
+                        "листа: расписание, дневной лимит и привязки родителей сброшены (этот телефон " +
+                        "остался привязан, раз вы видите это сообщение). Настройте расписание заново.\n\n" +
+                        "Когда: ${warning.occurredAtUtc.replace('T', ' ').take(19)} (UTC)\n" +
+                        "Причина: ${warning.reason}",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        connection?.acknowledgeStateRecovery()
+                        stateRecoveryWarning = null
+                    }
+                }) { Text("Понятно") }
+            },
+        )
     }
 
     if (showForgetDialog && device != null) {
@@ -166,6 +201,40 @@ fun DeviceDetailScreen(
                 }
             }
 
+            Text("Подключение", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 20.dp, bottom = 4.dp))
+            Text(
+                "IP-адрес ПК может смениться (например, после перезагрузки роутера). Если приложение не может подключиться, укажите текущий адрес вручную вместо повторной привязки.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = hostAndPortText,
+                onValueChange = { hostAndPortText = it },
+                label = { Text("IP:порт") },
+                placeholder = { Text("192.168.1.50:51843") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            Button(
+                onClick = {
+                    val current = device
+                    val trimmed = hostAndPortText.trim()
+                    val port = trimmed.substringAfterLast(':', missingDelimiterValue = "").toIntOrNull()
+                    if (current == null || port == null || trimmed.substringBeforeLast(':').isBlank()) {
+                        statusMessage = "Укажите адрес в формате IP:порт, например 192.168.1.50:51843."
+                        statusIsError = true
+                        return@Button
+                    }
+
+                    val updated = current.copy(hostAndPort = trimmed)
+                    deviceStore.add(updated)
+                    device = updated
+                    startConnection(updated)
+                    statusMessage = "Адрес сохранён, переподключаемся..."
+                    statusIsError = false
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) { Text("Сохранить и переподключиться") }
+
             val isManuallyLocked = status?.let { it.isLocked && LockReason.fromWireValue(it.reason) == LockReason.ManuallyLocked } == true
             Button(
                 onClick = {
@@ -199,6 +268,32 @@ fun DeviceDetailScreen(
                     ) { Text("+$minutes мин") }
                 }
             }
+
+            Button(
+                onClick = {
+                    val currentSeconds = (status?.let { NetTimeSpan.parseToSeconds(it.remainingBudget) } ?: 0).toInt()
+                    val initialHour = currentSeconds / 3600
+                    val initialMinute = (currentSeconds % 3600) / 60
+
+                    val dialog = TimePickerDialog(
+                        context,
+                        { _, hourOfDay, minute ->
+                            scope.launch {
+                                val ok = connection?.setRemainingTime(hourOfDay * 60 + minute) == true
+                                statusMessage = if (ok) "Лимит установлен: %02d:%02d.".format(hourOfDay, minute) else "ПК отклонил запрос."
+                                statusIsError = !ok
+                            }
+                        },
+                        initialHour,
+                        initialMinute,
+                        true, // 24-часовой формат, без секунд — они всегда обнуляются
+                    )
+                    dialog.show()
+                    dialog.getButton(TimePickerDialog.BUTTON_POSITIVE).text = "Сохранить"
+                    dialog.getButton(TimePickerDialog.BUTTON_NEGATIVE).text = "Отмена"
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) { Text("Изменить лимит") }
 
             Text("Расписание", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 24.dp, bottom = 4.dp))
             Text(
@@ -283,10 +378,6 @@ fun DeviceDetailScreen(
                         modifier = Modifier.fillMaxWidth().height(200.dp).padding(top = 8.dp),
                     )
                 }
-            }
-
-            Button(onClick = onOfflineUnlock, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Text("Оффлайн-разблокировка")
             }
 
             statusMessage?.let {

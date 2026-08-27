@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -38,6 +39,7 @@ fun DeviceListScreen(
     deviceStore: DeviceStore,
     onAddDevice: () -> Unit,
     onOpenDevice: (String) -> Unit,
+    onOfflineUnlock: () -> Unit,
 ) {
     var devices by remember { mutableStateOf<List<PairedDevice>>(emptyList()) }
 
@@ -62,29 +64,39 @@ fun DeviceListScreen(
             }
         },
     ) { padding ->
-        if (devices.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Not tied to any one paired PC — this is the emergency path for when a
+            // computer has no network at all, so it has to be reachable without first
+            // picking a device.
+            Button(
+                onClick = onOfflineUnlock,
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            ) { Text("Оффлайн-разблокировка") }
+
+            if (devices.isEmpty()) {
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text("Пока нет привязанных компьютеров")
-                    Text("Нажмите + и отсканируйте QR-код на ПК")
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("Пока нет привязанных компьютеров")
+                        Text("Нажмите + и отсканируйте QR-код на ПК")
+                    }
                 }
-            }
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-                items(devices, key = { it.deviceId }) { device ->
-                    ListItem(
-                        headlineContent = { Text(device.displayName) },
-                        supportingContent = { Text(device.hostAndPort) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onOpenDevice(device.deviceId) },
-                    )
+            } else {
+                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    items(devices, key = { it.deviceId }) { device ->
+                        ListItem(
+                            headlineContent = { Text(device.displayName) },
+                            supportingContent = { Text(device.hostAndPort) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onOpenDevice(device.deviceId) },
+                        )
+                    }
                 }
             }
         }

@@ -16,6 +16,7 @@ public class NetworkMessageSerializationTests
             new StatusUpdate(Guid.NewGuid(), "Kid's PC", true, LockReason.BudgetExhausted, TimeSpan.FromMinutes(5)),
             new CommandAck("req-1", false, "nope"),
             new ScreenshotResult("req-2", true, null, "base64==", DateTimeOffset.UtcNow),
+            new StateRecoveryWarning(DateTimeOffset.UtcNow, "IOException: disk hiccup"),
         ];
 
         foreach (var message in messages)
@@ -42,8 +43,10 @@ public class NetworkMessageSerializationTests
         [
             new AuthResponse(Guid.NewGuid(), "nonce", "resp=="),
             new ExtendTimeCommand("req-1", 30),
+            new SetRemainingTimeCommand("req-1b", 360),
             new UpdateScheduleCommand("req-2", schedule),
             new RequestScreenshotCommand("req-3"),
+            new AcknowledgeStateRecoveryCommand("req-4"),
         ];
 
         foreach (var message in messages)
@@ -53,7 +56,7 @@ public class NetworkMessageSerializationTests
             Assert.IsType(message.GetType(), roundTripped);
         }
 
-        var scheduleJson = JsonSerializer.Serialize(messages[2]);
+        var scheduleJson = JsonSerializer.Serialize(messages[3]);
         var scheduleRoundTripped = Assert.IsType<UpdateScheduleCommand>(
             JsonSerializer.Deserialize<ControllerToServerMessage>(scheduleJson));
         Assert.Equal(90, scheduleRoundTripped.Schedule.DailyLimitMinutes);

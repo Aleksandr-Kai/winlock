@@ -76,6 +76,8 @@ public sealed class ControllerHub : IAgentStatusPublisher
 
             await SendAsync(state, BuildStatus(_runtime.Evaluate()), ct); // bring it up to date immediately
             await SendAsync(state, new ScheduleSnapshot(_runtime.CurrentSchedule), ct);
+            if (_runtime.PendingStateRecoveryIncident is { } incident)
+                await SendAsync(state, new StateRecoveryWarning(incident.OccurredAtUtc, incident.Reason), ct);
 
             while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
             {
@@ -110,6 +112,12 @@ public sealed class ControllerHub : IAgentStatusPublisher
                 _runtime.ExtendTime(TimeSpan.FromMinutes(extend.Minutes));
                 await SendAsync(state, new CommandAck(extend.RequestId, true, null), ct);
                 await PublishAsync(_runtime.Evaluate(), ct); // let every parent see the new budget right away
+                break;
+
+            case SetRemainingTimeCommand setTime:
+                _runtime.SetRemainingTime(TimeSpan.FromMinutes(setTime.Minutes));
+                await SendAsync(state, new CommandAck(setTime.RequestId, true, null), ct);
+                await PublishAsync(_runtime.Evaluate(), ct);
                 break;
 
             case UpdateScheduleCommand update:
@@ -148,6 +156,11 @@ public sealed class ControllerHub : IAgentStatusPublisher
                     unlockNow.RequestId, unlocked,
                     unlocked ? null : "Лимит времени на сегодня исчерпан — разблокировка невозможна."), ct);
                 await PublishAsync(_runtime.Evaluate(), ct);
+                break;
+
+            case AcknowledgeStateRecoveryCommand acknowledge:
+                _runtime.AcknowledgeStateRecoveryIncident();
+                await SendAsync(state, new CommandAck(acknowledge.RequestId, true, null), ct);
                 break;
         }
     }

@@ -196,6 +196,66 @@ public class UsageTrackerTests
     }
 
     [Fact]
+    public void SetRemainingBudget_ReplacesTheBudgetOutright_RatherThanAddingToIt()
+    {
+        var (tracker, _) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+
+        tracker.SetRemainingBudget(TimeSpan.FromHours(6));
+
+        Assert.Equal(TimeSpan.FromHours(6), tracker.State.RemainingBudget);
+    }
+
+    [Fact]
+    public void SetRemainingBudget_ClampsNegativeValuesToZero()
+    {
+        var (tracker, _) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+
+        tracker.SetRemainingBudget(TimeSpan.FromMinutes(-5));
+
+        Assert.Equal(TimeSpan.Zero, tracker.State.RemainingBudget);
+    }
+
+    [Fact]
+    public void SetRemainingBudget_ClearsTamperFlag_AndLiftsAManualLock()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 10));
+        tracker.Evaluate();
+        clock.Advance(TimeSpan.FromSeconds(1));
+        clock.JumpWallClockOnly(TimeSpan.FromDays(1));
+        tracker.Evaluate();
+        Assert.True(tracker.State.ClockTamperSuspected);
+        tracker.SetManualLock();
+
+        tracker.SetRemainingBudget(TimeSpan.FromHours(1));
+
+        Assert.False(tracker.State.ClockTamperSuspected);
+        Assert.False(tracker.State.ManuallyLocked);
+    }
+
+    [Fact]
+    public void SetRemainingBudget_ActuallyUnlocksAMachineThatWasLockedForBeingOutsideTheWindow()
+    {
+        var schedule = new ScheduleConfig
+        {
+            IsConfigured = true,
+            DailyLimitMinutes = 60,
+            AllowedWindows = new Dictionary<DayOfWeek, List<TimeWindow>>
+            {
+                // Never allowed today — forces reliance on the emergency override below.
+                [StartUtc.DayOfWeek] = new() { new TimeWindow(new TimeOnly(2, 0), new TimeOnly(3, 0)) },
+            },
+        };
+        var (tracker, _) = Build(schedule);
+        Assert.True(tracker.Evaluate().ShouldBeLocked);
+
+        tracker.SetRemainingBudget(TimeSpan.FromHours(2));
+
+        Assert.False(tracker.Evaluate().ShouldBeLocked);
+    }
+
+    [Fact]
     public void Evaluate_ResetsBudgetToFullDailyLimit_OnNewCalendarDay()
     {
         var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 60));

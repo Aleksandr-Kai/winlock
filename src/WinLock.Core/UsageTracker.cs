@@ -80,6 +80,26 @@ public sealed class UsageTracker
         }
     }
 
+    /// <summary>Sets today's remaining budget to an exact value, rather than adding an
+    /// increment on top of whatever's currently left — a parent picking "6 hours left" on a
+    /// clock face rather than tapping +30 repeatedly. Otherwise mirrors <see cref="ExtendTime"/>:
+    /// clears a tamper flag and any manual lock, and grants a matching allowed-window bypass,
+    /// since an authenticated, explicit grant of a specific amount of time right now is just
+    /// as strong a signal here as it is there.</summary>
+    public void SetRemainingBudget(TimeSpan value)
+    {
+        _state.RemainingBudget = value < TimeSpan.Zero ? TimeSpan.Zero : value;
+        _state.ClockTamperSuspected = false;
+        _state.ManuallyLocked = false;
+
+        if (_state.RemainingBudget > TimeSpan.Zero)
+        {
+            var overrideUntil = _clock.UtcNow + _state.RemainingBudget;
+            if (_state.ScheduleOverrideUntilUtc is not { } current || overrideUntil > current)
+                _state.ScheduleOverrideUntilUtc = overrideUntil;
+        }
+    }
+
     public LockDecision Evaluate()
     {
         var nowMonotonicMs = _clock.ElapsedMilliseconds;

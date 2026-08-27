@@ -22,13 +22,20 @@ public sealed class AgentRuntime
     private ScheduleConfig _schedule;
     private readonly PairingState _pairing;
     private readonly OfflineUnlockState _offlineState;
+    private StateRecoveryIncident? _pendingStateRecoveryIncident;
 
-    public AgentRuntime(UsageTracker tracker, ScheduleConfig initialSchedule, PairingState pairing, OfflineUnlockState offlineState)
+    public AgentRuntime(
+        UsageTracker tracker,
+        ScheduleConfig initialSchedule,
+        PairingState pairing,
+        OfflineUnlockState offlineState,
+        StateRecoveryIncident? pendingStateRecoveryIncident = null)
     {
         _tracker = tracker;
         _schedule = initialSchedule;
         _pairing = pairing;
         _offlineState = offlineState;
+        _pendingStateRecoveryIncident = pendingStateRecoveryIncident;
         _offlineUnlock = new OfflineUnlockService(pairing, offlineState);
         _pairingService = new PairingService(pairing);
         _authenticator = new ControllerAuthenticator(pairing);
@@ -52,6 +59,13 @@ public sealed class AgentRuntime
     {
         lock (_gate)
             _tracker.ExtendTime(extra);
+    }
+
+    /// <summary>Sets today's remaining budget to an exact value, instead of adding to it.</summary>
+    public void SetRemainingTime(TimeSpan value)
+    {
+        lock (_gate)
+            _tracker.SetRemainingBudget(value);
     }
 
     public void UpdateSchedule(ScheduleConfig schedule)
@@ -83,6 +97,20 @@ public sealed class AgentRuntime
     {
         lock (_gate)
             return _tracker.TryClearManualLock();
+    }
+
+    /// <summary>Set once, at startup, if the persisted state couldn't be read and the agent
+    /// had to fall back to a fresh, empty one — see JsonFileStateStore. Sent to every
+    /// controller on connect until a parent acknowledges it.</summary>
+    public StateRecoveryIncident? PendingStateRecoveryIncident
+    {
+        get { lock (_gate) return _pendingStateRecoveryIncident; }
+    }
+
+    public void AcknowledgeStateRecoveryIncident()
+    {
+        lock (_gate)
+            _pendingStateRecoveryIncident = null;
     }
 
     /// <summary>For display as a QR code on the lock screen.</summary>
@@ -151,6 +179,7 @@ public sealed class AgentRuntime
                 Usage = _tracker.State,
                 Pairing = _pairing,
                 Offline = _offlineState,
+                PendingStateRecoveryIncident = _pendingStateRecoveryIncident,
             };
     }
 }

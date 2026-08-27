@@ -58,4 +58,41 @@ public class JsonFileStateStoreTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public async Task Load_CorruptFile_PreservesTheUnreadableBytes_RatherThanLettingTheNextSaveDestroyThem()
+    {
+        // Regression test: a silent fail-safe-to-blank-defaults used to mean the very next
+        // SaveAsync would overwrite the only copy of a corrupt-but-maybe-still-useful file
+        // with an empty state — losing the schedule, pairing, and certificate all at once,
+        // indistinguishable from a genuinely fresh install and with zero trace of what
+        // happened. The corrupt file must survive under a backup name, and a breadcrumb
+        // explaining why must be left next to it.
+        var path = Path.Combine(Path.GetTempPath(), $"winlock-test-{Guid.NewGuid():N}.json");
+        const string corruptContent = "{ not valid json ][";
+        await File.WriteAllTextAsync(path, corruptContent);
+        var store = new JsonFileStateStore(path, new NullStateProtector());
+        try
+        {
+            await store.LoadAsync();
+
+            var directory = Path.GetDirectoryName(path)!;
+            var fileName = Path.GetFileName(path);
+            var backups = Directory.GetFiles(directory, $"{fileName}.corrupt-*");
+            Assert.Single(backups);
+            Assert.Equal(corruptContent, await File.ReadAllTextAsync(backups[0]));
+
+            var errorLogPath = path + ".errors.log";
+            Assert.True(File.Exists(errorLogPath));
+            var logContents = await File.ReadAllTextAsync(errorLogPath);
+            Assert.Contains("could not read/decrypt state", logContents);
+
+            File.Delete(backups[0]);
+            File.Delete(errorLogPath);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

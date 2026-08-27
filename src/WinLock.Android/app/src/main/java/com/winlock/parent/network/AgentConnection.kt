@@ -3,6 +3,7 @@ package com.winlock.parent.network
 import com.winlock.parent.crypto.ControllerAuthenticator
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.model.ScheduleConfig
+import com.winlock.parent.protocol.AcknowledgeStateRecoveryCommand
 import com.winlock.parent.protocol.AuthChallenge
 import com.winlock.parent.protocol.AuthResponse
 import com.winlock.parent.protocol.AuthResult
@@ -14,6 +15,8 @@ import com.winlock.parent.protocol.RequestScreenshotCommand
 import com.winlock.parent.protocol.ScheduleSnapshot
 import com.winlock.parent.protocol.ScreenshotResult
 import com.winlock.parent.protocol.ServerToControllerMessage
+import com.winlock.parent.protocol.SetRemainingTimeCommand
+import com.winlock.parent.protocol.StateRecoveryWarning
 import com.winlock.parent.protocol.StatusUpdate
 import com.winlock.parent.protocol.UnlockNowCommand
 import com.winlock.parent.protocol.UpdateScheduleCommand
@@ -41,6 +44,7 @@ import kotlin.coroutines.resumeWithException
 class AgentConnection(private val device: PairedDevice) {
     var onStatus: ((StatusUpdate) -> Unit)? = null
     var onSchedule: ((ScheduleConfig) -> Unit)? = null
+    var onStateRecoveryWarning: ((StateRecoveryWarning) -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
 
     private var client: OkHttpClient? = null
@@ -87,6 +91,7 @@ class AgentConnection(private val device: PairedDevice) {
 
                         is StatusUpdate -> onStatus?.invoke(message)
                         is ScheduleSnapshot -> onSchedule?.invoke(message.schedule)
+                        is StateRecoveryWarning -> onStateRecoveryWarning?.invoke(message)
                         is CommandAck -> pending.remove(message.requestId)?.resume(message)
                         is ScreenshotResult -> pending.remove(message.requestId)?.resume(message)
                     }
@@ -117,6 +122,13 @@ class AgentConnection(private val device: PairedDevice) {
         return (result as? CommandAck)?.success == true
     }
 
+    /** Sets today's remaining budget to an exact value, instead of adding to it. */
+    suspend fun setRemainingTime(minutes: Int): Boolean {
+        val requestId = newRequestId()
+        val result = sendAndWait(requestId, SetRemainingTimeCommand(requestId, minutes))
+        return (result as? CommandAck)?.success == true
+    }
+
     suspend fun updateSchedule(schedule: ScheduleConfig): Boolean {
         val requestId = newRequestId()
         val result = sendAndWait(requestId, UpdateScheduleCommand(requestId, schedule))
@@ -140,6 +152,12 @@ class AgentConnection(private val device: PairedDevice) {
     suspend fun unlockNow(): CommandAck {
         val requestId = newRequestId()
         return sendAndWait(requestId, UnlockNowCommand(requestId)) as CommandAck
+    }
+
+    suspend fun acknowledgeStateRecovery(): Boolean {
+        val requestId = newRequestId()
+        val result = sendAndWait(requestId, AcknowledgeStateRecoveryCommand(requestId))
+        return (result as? CommandAck)?.success == true
     }
 
     private suspend fun sendAndWait(

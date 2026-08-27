@@ -39,7 +39,7 @@ private const val OfflineUnlockMinutes = 30
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OfflineUnlockScreen(deviceId: String, deviceStore: DeviceStore, onBack: () -> Unit) {
+fun OfflineUnlockScreen(deviceStore: DeviceStore, onBack: () -> Unit) {
     var code by remember { mutableStateOf<String?>(null) }
     var errorText by remember { mutableStateOf<String?>(null) }
 

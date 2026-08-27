@@ -33,12 +33,46 @@ public sealed class JsonFileStateStore : IStateStore
             return JsonSerializer.Deserialize<AgentPersistedData>(plaintext, SerializerOptions)
                    ?? new AgentPersistedData();
         }
-        catch (Exception) when (ct.IsCancellationRequested == false)
+        catch (Exception ex) when (ct.IsCancellationRequested == false)
         {
             // Corrupt, tampered, or unreadable state file: fail safe by starting from a
-            // fresh, empty budget rather than crashing the service or granting free time.
-            return new AgentPersistedData();
+            // fresh, empty state rather than crashing the service or granting free time.
+            // Critically, never let that be a SILENT reset — the very next SaveAsync would
+            // otherwise overwrite this file with the blank state, permanently destroying the
+            // schedule, pairing, and certificate all at once with no trace that anything was
+            // ever there. Preserve the unreadable bytes under a sibling name and leave a
+            // plain-text breadcrumb explaining why, before handing back the fresh default.
+            var reason = TryPreserveUnreadableFile(ex);
+            return new AgentPersistedData
+            {
+                PendingStateRecoveryIncident = new StateRecoveryIncident(DateTimeOffset.UtcNow, reason),
+            };
         }
+    }
+
+    private string TryPreserveUnreadableFile(Exception cause)
+    {
+        var reason = $"{cause.GetType().Name}: {cause.Message}";
+        if (reason.Length > 300)
+            reason = reason[..300];
+
+        try
+        {
+            var backupPath = $"{_filePath}.corrupt-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+            File.Copy(_filePath, backupPath, overwrite: true);
+            File.AppendAllText(
+                _filePath + ".errors.log",
+                $"{DateTime.UtcNow:O} — could not read/decrypt state; starting from a fresh, " +
+                $"empty state instead. Unreadable file backed up to {Path.GetFileName(backupPath)}. " +
+                $"Cause: {reason}{Environment.NewLine}");
+        }
+        catch
+        {
+            // Best-effort diagnostics only — must never let a failure here mask the original
+            // fail-safe fallback or crash the service.
+        }
+
+        return reason;
     }
 
     public async Task SaveAsync(AgentPersistedData data, CancellationToken ct = default)
