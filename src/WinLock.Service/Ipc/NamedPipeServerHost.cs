@@ -60,6 +60,14 @@ public sealed class NamedPipeServerHost : IAsyncDisposable
                 server.Dispose();
                 break;
             }
+            catch (Exception ex)
+            {
+                // Same reasoning as the ReadFromClientAsync guard below: anything unexpected
+                // here must not end the accept loop for good — just this one attempt.
+                _logger.LogError(ex, "Failed while waiting for a pipe client to connect; retrying.");
+                server.Dispose();
+                continue;
+            }
 
             var channel = new NdjsonChannel<UiToServiceMessage, ServiceToUiMessage>(server);
             await _sendLock.WaitAsync(ct);
@@ -68,7 +76,21 @@ public sealed class NamedPipeServerHost : IAsyncDisposable
             _sendLock.Release();
             ClientConnected?.Invoke();
 
-            await ReadFromClientAsync(channel, ct);
+            // This must never throw back into the accept loop below it — an exception here
+            // used to permanently kill the whole loop (it's started via a fire-and-forget
+            // Task.Run, so nothing observed it either): one bad message from one client and
+            // the pipe silently stopped accepting *any* connection — pairing, the lock
+            // screen, everything — for the rest of the service's uptime, with the Windows
+            // Service itself still showing "Running" the whole time. Belt-and-suspenders
+            // here on top of the same guard inside ReadFromClientAsync.
+            try
+            {
+                await ReadFromClientAsync(channel, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Unhandled error while servicing a pipe client; dropping this connection and continuing to accept new ones.");
+            }
 
             await _sendLock.WaitAsync(CancellationToken.None);
             if (ReferenceEquals(_currentChannel, channel))
@@ -93,7 +115,17 @@ public sealed class NamedPipeServerHost : IAsyncDisposable
                 if (message is null)
                     return; // UI helper disconnected
 
-                MessageReceived?.Invoke(message);
+                try
+                {
+                    MessageReceived?.Invoke(message);
+                }
+                catch (Exception ex)
+                {
+                    // A bug in one message's handler (pairing, offline-unlock, whatever)
+                    // must not cost this client — or every future client — the whole
+                    // connection. Log it and keep reading the next message.
+                    _logger.LogError(ex, "Unhandled error handling a {MessageType} message from the pipe client.", message.GetType().Name);
+                }
             }
         }
         catch (OperationCanceledException)
