@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using WinLock.Core.Ipc;
+using WinLock.Core.Windows;
 
 namespace WinLock.Agent.UI;
 
@@ -8,7 +9,7 @@ namespace WinLock.Agent.UI;
 /// Launched only via <c>WinLock.Agent.UI.exe --pair</c>, by an administrator (a shortcut the
 /// installer marks "Run as administrator" — a standard, non-admin child account can't supply
 /// the UAC credentials that requires). The service double-checks this independently by
-/// impersonating the pipe connection; see <c>NamedPipeServerHost.IsCurrentClientAdministrator</c>.
+/// impersonating the pipe connection; see <c>PipeClient.IsAdministrator</c>.
 /// </summary>
 public partial class PairingWindow : Window
 {
@@ -29,18 +30,70 @@ public partial class PairingWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        StatusText.Text = "Подключение к службе WinLock...";
         _pipeClient.MessageReceived += OnMessageReceived;
+        await RefreshServiceStatusAndConnectAsync();
+    }
 
+    private async Task RefreshServiceStatusAndConnectAsync()
+    {
+        StatusText.Text = "Проверяем службу WinLock...";
+        var running = await Task.Run(() => ServiceControl.IsRunning(ServiceControl.ServiceName));
+        UpdateServiceButtons(running);
+
+        if (!running)
+        {
+            StatusText.Text = "Служба WinLock остановлена. Запустите её, чтобы продолжить привязку.";
+            return;
+        }
+
+        StatusText.Text = "Подключение к службе WinLock...";
         var connected = await _pipeClient.ConnectAsync(TimeSpan.FromSeconds(5), _cts.Token);
         if (!connected)
         {
-            StatusText.Text = "Не удалось подключиться к службе WinLock. Убедитесь, что она запущена.";
+            StatusText.Text = "Не удалось подключиться к службе WinLock, хотя она запущена. Попробуйте её перезапустить.";
             return;
         }
 
         StatusText.Text = "Запрашиваем QR-код...";
         await _pipeClient.SendAsync(new BeginPairingRequest(), _cts.Token);
+    }
+
+    private void UpdateServiceButtons(bool running)
+    {
+        ServiceStatusText.Text = running ? "Служба WinLock запущена." : "Служба WinLock остановлена.";
+        StartServiceButton.IsEnabled = !running;
+        StopServiceButton.IsEnabled = running;
+    }
+
+    private async void StartServiceButton_Click(object sender, RoutedEventArgs e)
+    {
+        StartServiceButton.IsEnabled = false;
+        StopServiceButton.IsEnabled = false;
+        StatusText.Text = "Запускаем службу...";
+
+        var started = await Task.Run(() => ServiceControl.Start(ServiceControl.ServiceName));
+        if (!started)
+        {
+            StatusText.Text = "Служба не запустилась за отведённое время.";
+            UpdateServiceButtons(await Task.Run(() => ServiceControl.IsRunning(ServiceControl.ServiceName)));
+            return;
+        }
+
+        await RefreshServiceStatusAndConnectAsync();
+    }
+
+    private async void StopServiceButton_Click(object sender, RoutedEventArgs e)
+    {
+        StartServiceButton.IsEnabled = false;
+        StopServiceButton.IsEnabled = false;
+        StatusText.Text = "Останавливаем службу...";
+
+        await Task.Run(() => ServiceControl.Stop(ServiceControl.ServiceName));
+
+        QrImage.Source = null;
+        QrTextBox.Text = string.Empty;
+        UpdateServiceButtons(false);
+        StatusText.Text = "Служба остановлена.";
     }
 
     private void OnMessageReceived(ServiceToUiMessage message)

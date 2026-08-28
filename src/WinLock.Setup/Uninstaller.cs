@@ -1,3 +1,5 @@
+using WinLock.Core.Windows;
+
 namespace WinLock.Setup;
 
 public static class Uninstaller

@@ -1,4 +1,4 @@
-namespace WinLock.Setup;
+namespace WinLock.Core.Windows;
 
 /// <summary>Thin sc.exe wrapper — deliberately not System.ServiceProcess.ServiceController:
 /// sc.exe is what the original PowerShell installer used (via New-Service/Get-Service, which
@@ -6,6 +6,8 @@ namespace WinLock.Setup;
 /// the proven-working "update in place, never delete+recreate" behavior identical.</summary>
 public static class ServiceControl
 {
+    public const string ServiceName = "WinLock Agent";
+
     private const int ErrorServiceDoesNotExist = 1060;
 
     public static bool Exists(string serviceName) =>

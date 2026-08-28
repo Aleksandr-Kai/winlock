@@ -1,12 +1,12 @@
 using System.Diagnostics;
 
-namespace WinLock.Setup;
+namespace WinLock.Core.Windows;
 
 public sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
 
 /// <summary>Runs a console tool (sc.exe, netsh.exe, dotnet.exe) and captures its output —
-/// every install step below shells out to one of these instead of reimplementing the
-/// underlying Win32 APIs, the same approach the original PowerShell installer used.</summary>
+/// every caller shells out to one of these instead of reimplementing the underlying Win32
+/// APIs, the same approach the original PowerShell installer used.</summary>
 public static class ProcessRunner
 {
     public static ProcessResult Run(string exe, params string[] args)

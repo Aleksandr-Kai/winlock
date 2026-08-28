@@ -80,7 +80,7 @@ public sealed class IpcLockController : ILockController, IAsyncDisposable
             _ = _pipeHost.SendAsync(new LockCommand(r));
     }
 
-    private void OnMessageReceived(UiToServiceMessage message)
+    private void OnMessageReceived(UiToServiceMessage message, PipeClient client)
     {
         switch (message)
         {

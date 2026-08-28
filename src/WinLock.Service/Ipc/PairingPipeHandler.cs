@@ -33,12 +33,12 @@ public sealed class PairingPipeHandler
         _pipeHost.MessageReceived += OnMessageReceived;
     }
 
-    private void OnMessageReceived(UiToServiceMessage message)
+    private void OnMessageReceived(UiToServiceMessage message, PipeClient client)
     {
         switch (message)
         {
             case BeginPairingRequest:
-                HandleBeginPairing();
+                HandleBeginPairing(client);
                 break;
 
             case CancelPairingRequest:
@@ -47,25 +47,25 @@ public sealed class PairingPipeHandler
         }
     }
 
-    private void HandleBeginPairing()
+    private void HandleBeginPairing(PipeClient client)
     {
-        if (!_pipeHost.IsCurrentClientAdministrator())
+        if (!client.IsAdministrator())
         {
             _logger.LogWarning("BeginPairingRequest rejected: the connected client is not an administrator.");
-            _ = _pipeHost.SendAsync(new PairingFailed("Требуются права администратора."));
+            _ = client.SendAsync(new PairingFailed("Требуются права администратора."));
             return;
         }
 
         var address = NetworkAddressHelper.GetPrimaryLocalIPv4();
         if (address is null)
         {
-            _ = _pipeHost.SendAsync(new PairingFailed("Не удалось определить адрес в локальной сети."));
+            _ = client.SendAsync(new PairingFailed("Не удалось определить адрес в локальной сети."));
             return;
         }
 
         var qr = _runtime.BeginPairing(PairingValidity, _certificateFingerprintHex, $"{address}:{_port}");
         _logger.LogInformation("Pairing mode started; QR valid for {Validity}.", PairingValidity);
-        _ = _pipeHost.SendAsync(new PairingQrIssued(qr.ToQrText(), DateTimeOffset.UtcNow + PairingValidity));
+        _ = client.SendAsync(new PairingQrIssued(qr.ToQrText(), DateTimeOffset.UtcNow + PairingValidity));
     }
 
     /// <summary>Called by the HTTP pairing endpoint once a phone actually completes
