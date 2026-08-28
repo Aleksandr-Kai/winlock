@@ -12,6 +12,7 @@ namespace WinLock.Core.Network;
 [JsonDerivedType(typeof(ScreenshotResult), "screenshotResult")]
 [JsonDerivedType(typeof(ScheduleSnapshot), "scheduleSnapshot")]
 [JsonDerivedType(typeof(StateRecoveryWarning), "stateRecoveryWarning")]
+[JsonDerivedType(typeof(ServiceStoppedWarning), "serviceStoppedWarning")]
 [JsonDerivedType(typeof(AgentVersionInfo), "agentVersion")]
 public abstract record ServerToControllerMessage;
 
@@ -54,6 +55,12 @@ public sealed record ScheduleSnapshot(ScheduleConfig Schedule) : ServerToControl
 /// every controller on connect until a parent acknowledges it with AcknowledgeStateRecoveryCommand,
 /// since none may have been connected at the moment it happened.</summary>
 public sealed record StateRecoveryWarning(DateTimeOffset OccurredAtUtc, string Reason) : ServerToControllerMessage;
+
+/// <summary>An administrator stopped the WinLock service — every protection this product
+/// enforces is off until it's started again. Sent to every controller on connect until a
+/// parent acknowledges it with AcknowledgeServiceStoppedCommand, since none may have been
+/// connected at the moment it happened.</summary>
+public sealed record ServiceStoppedWarning(DateTimeOffset OccurredAtUtc, string Reason) : ServerToControllerMessage;
 
 /// <summary>The PC agent's version (see <see cref="WinLock.Core.AgentVersion"/>), sent once
 /// right after a controller authenticates — a parent has no other way to tell, short of

@@ -48,6 +48,7 @@ import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.rootCauseMessage
 import com.winlock.parent.protocol.LockReasonText
 import com.winlock.parent.protocol.NetTimeSpan
+import com.winlock.parent.protocol.ServiceStoppedWarning
 import com.winlock.parent.protocol.StateRecoveryWarning
 import com.winlock.parent.protocol.StatusUpdate
 import kotlinx.coroutines.launch
@@ -75,6 +76,7 @@ fun DeviceDetailScreen(
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var statusIsError by remember { mutableStateOf(false) }
     var stateRecoveryWarning by remember { mutableStateOf<StateRecoveryWarning?>(null) }
+    var serviceStoppedWarning by remember { mutableStateOf<ServiceStoppedWarning?>(null) }
     var screenshotBytes by remember { mutableStateOf<ByteArray?>(null) }
     var showWheelPicker by remember { mutableStateOf(false) }
 
@@ -87,6 +89,7 @@ fun DeviceDetailScreen(
         connection = conn
         conn.onStatus = { status = it }
         conn.onStateRecoveryWarning = { stateRecoveryWarning = it }
+        conn.onServiceStoppedWarning = { serviceStoppedWarning = it }
         conn.onDisconnected = { isConnected = false }
         scope.launch {
             try {
@@ -125,6 +128,30 @@ fun DeviceDetailScreen(
                     scope.launch {
                         connection?.acknowledgeStateRecovery()
                         stateRecoveryWarning = null
+                    }
+                }) { Text("Понятно") }
+            },
+        )
+    }
+
+    serviceStoppedWarning?.let { warning ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("⚠ Служба WinLock была остановлена на ПК") },
+            text = {
+                Text(
+                    "Кто-то с правами администратора остановил службу WinLock прямо на компьютере " +
+                        "(например, через окно настройки/привязки). Пока служба остановлена, расписание " +
+                        "и лимиты времени не действуют.\n\n" +
+                        "Когда: ${warning.occurredAtUtc.replace('T', ' ').take(19)} (UTC)\n" +
+                        "Подробности: ${warning.reason}",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        connection?.acknowledgeServiceStopped()
+                        serviceStoppedWarning = null
                     }
                 }) { Text("Понятно") }
             },

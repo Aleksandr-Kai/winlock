@@ -1,7 +1,10 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using WinLock.Core.Ipc;
+using WinLock.Core.Models;
+using WinLock.Core.State;
 using WinLock.Core.Windows;
 
 namespace WinLock.Agent.UI;
@@ -89,6 +92,14 @@ public partial class PairingWindow : Window
         StopServiceButton.IsEnabled = false;
         StatusText.Text = "Останавливаем службу...";
 
+        // Best-effort: the service is the one normally responsible for recording things like
+        // this about itself, but it's the one about to be stopped. Written directly to the
+        // same state file (machine-scope DPAPI decrypts for any admin on this machine, not
+        // just SYSTEM) so the next time a parent's phone connects — whenever the service is
+        // next started — it finds out the service was stopped, even though nothing was
+        // running to tell it so at the actual moment.
+        await Task.Run(RecordServiceStoppedNotice);
+
         await Task.Run(() => ServiceControl.Stop(ServiceControl.ServiceName));
 
         // The lock screen can only ever be dismissed by the service validating an unlock
@@ -105,6 +116,26 @@ public partial class PairingWindow : Window
         StatusText.Text = closedLockScreen
             ? "Служба остановлена, экран блокировки закрыт вместе с ней."
             : "Служба остановлена.";
+    }
+
+    private static void RecordServiceStoppedNotice()
+    {
+        try
+        {
+            var dataDir = Environment.GetEnvironmentVariable("WINLOCK_DATA_DIR")
+                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "WinLock");
+            var store = new JsonFileStateStore(Path.Combine(dataDir, "state.json"), new DpapiStateProtector());
+
+            var data = store.LoadAsync().GetAwaiter().GetResult();
+            data.PendingServiceStoppedNotice = new ServiceStoppedNotice(
+                DateTimeOffset.UtcNow, "Остановлена вручную через окно настройки/привязки на ПК.");
+            store.SaveAsync(data).GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // Best-effort notice only — must never block actually stopping the service just
+            // because, say, the state file happened to be locked by something else right now.
+        }
     }
 
     private static bool CloseOtherAgentUiProcesses()

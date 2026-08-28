@@ -79,6 +79,8 @@ public sealed class ControllerHub : IAgentStatusPublisher
             await SendAsync(state, new ScheduleSnapshot(_runtime.CurrentSchedule), ct);
             if (_runtime.PendingStateRecoveryIncident is { } incident)
                 await SendAsync(state, new StateRecoveryWarning(incident.OccurredAtUtc, incident.Reason), ct);
+            if (_runtime.PendingServiceStoppedNotice is { } stoppedNotice)
+                await SendAsync(state, new ServiceStoppedWarning(stoppedNotice.OccurredAtUtc, stoppedNotice.Reason), ct);
 
             while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
             {
@@ -162,6 +164,11 @@ public sealed class ControllerHub : IAgentStatusPublisher
             case AcknowledgeStateRecoveryCommand acknowledge:
                 _runtime.AcknowledgeStateRecoveryIncident();
                 await SendAsync(state, new CommandAck(acknowledge.RequestId, true, null), ct);
+                break;
+
+            case AcknowledgeServiceStoppedCommand acknowledgeStopped:
+                _runtime.AcknowledgeServiceStoppedNotice();
+                await SendAsync(state, new CommandAck(acknowledgeStopped.RequestId, true, null), ct);
                 break;
         }
     }

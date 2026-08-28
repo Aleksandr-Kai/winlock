@@ -84,6 +84,17 @@ data class StateRecoveryWarning(
     @SerialName("Reason") val reason: String,
 ) : ServerToControllerMessage()
 
+/** An administrator stopped the WinLock service directly on the PC (e.g. to recover a broken
+ * pairing) — every protection this product enforces is off until it's started again. Sent on
+ * connect until acknowledged with [AcknowledgeServiceStoppedCommand], since no phone may have
+ * been connected at the moment it actually happened. */
+@Serializable
+@SerialName("serviceStoppedWarning")
+data class ServiceStoppedWarning(
+    @SerialName("OccurredAtUtc") val occurredAtUtc: String,
+    @SerialName("Reason") val reason: String,
+) : ServerToControllerMessage()
+
 /** The PC agent's version — sent once right after authenticating, the only way this app can
  * tell whether a given PC needs updating without walking up to it. */
 @Serializable
@@ -150,6 +161,13 @@ data class UnlockNowCommand(
 @Serializable
 @SerialName("acknowledgeStateRecovery")
 data class AcknowledgeStateRecoveryCommand(
+    @SerialName("RequestId") val requestId: String,
+) : ControllerToServerMessage()
+
+/** Clears a pending [ServiceStoppedWarning] once a parent has seen it. */
+@Serializable
+@SerialName("acknowledgeServiceStopped")
+data class AcknowledgeServiceStoppedCommand(
     @SerialName("RequestId") val requestId: String,
 ) : ControllerToServerMessage()
 

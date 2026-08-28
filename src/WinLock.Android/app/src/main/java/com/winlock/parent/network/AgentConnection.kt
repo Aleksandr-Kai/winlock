@@ -3,6 +3,7 @@ package com.winlock.parent.network
 import com.winlock.parent.crypto.ControllerAuthenticator
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.model.ScheduleConfig
+import com.winlock.parent.protocol.AcknowledgeServiceStoppedCommand
 import com.winlock.parent.protocol.AcknowledgeStateRecoveryCommand
 import com.winlock.parent.protocol.AgentVersionInfo
 import com.winlock.parent.protocol.AuthChallenge
@@ -16,6 +17,7 @@ import com.winlock.parent.protocol.RequestScreenshotCommand
 import com.winlock.parent.protocol.ScheduleSnapshot
 import com.winlock.parent.protocol.ScreenshotResult
 import com.winlock.parent.protocol.ServerToControllerMessage
+import com.winlock.parent.protocol.ServiceStoppedWarning
 import com.winlock.parent.protocol.SetRemainingTimeCommand
 import com.winlock.parent.protocol.StateRecoveryWarning
 import com.winlock.parent.protocol.StatusUpdate
@@ -46,6 +48,7 @@ class AgentConnection(private val device: PairedDevice) {
     var onStatus: ((StatusUpdate) -> Unit)? = null
     var onSchedule: ((ScheduleConfig) -> Unit)? = null
     var onStateRecoveryWarning: ((StateRecoveryWarning) -> Unit)? = null
+    var onServiceStoppedWarning: ((ServiceStoppedWarning) -> Unit)? = null
     var onVersion: ((String) -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
 
@@ -94,6 +97,7 @@ class AgentConnection(private val device: PairedDevice) {
                         is StatusUpdate -> onStatus?.invoke(message)
                         is ScheduleSnapshot -> onSchedule?.invoke(message.schedule)
                         is StateRecoveryWarning -> onStateRecoveryWarning?.invoke(message)
+                        is ServiceStoppedWarning -> onServiceStoppedWarning?.invoke(message)
                         is AgentVersionInfo -> onVersion?.invoke(message.version)
                         is CommandAck -> pending.remove(message.requestId)?.resume(message)
                         is ScreenshotResult -> pending.remove(message.requestId)?.resume(message)
@@ -160,6 +164,12 @@ class AgentConnection(private val device: PairedDevice) {
     suspend fun acknowledgeStateRecovery(): Boolean {
         val requestId = newRequestId()
         val result = sendAndWait(requestId, AcknowledgeStateRecoveryCommand(requestId))
+        return (result as? CommandAck)?.success == true
+    }
+
+    suspend fun acknowledgeServiceStopped(): Boolean {
+        val requestId = newRequestId()
+        val result = sendAndWait(requestId, AcknowledgeServiceStoppedCommand(requestId))
         return (result as? CommandAck)?.success == true
     }
 

@@ -23,19 +23,22 @@ public sealed class AgentRuntime
     private readonly PairingState _pairing;
     private readonly OfflineUnlockState _offlineState;
     private StateRecoveryIncident? _pendingStateRecoveryIncident;
+    private ServiceStoppedNotice? _pendingServiceStoppedNotice;
 
     public AgentRuntime(
         UsageTracker tracker,
         ScheduleConfig initialSchedule,
         PairingState pairing,
         OfflineUnlockState offlineState,
-        StateRecoveryIncident? pendingStateRecoveryIncident = null)
+        StateRecoveryIncident? pendingStateRecoveryIncident = null,
+        ServiceStoppedNotice? pendingServiceStoppedNotice = null)
     {
         _tracker = tracker;
         _schedule = initialSchedule;
         _pairing = pairing;
         _offlineState = offlineState;
         _pendingStateRecoveryIncident = pendingStateRecoveryIncident;
+        _pendingServiceStoppedNotice = pendingServiceStoppedNotice;
         _offlineUnlock = new OfflineUnlockService(pairing, offlineState);
         _pairingService = new PairingService(pairing);
         _authenticator = new ControllerAuthenticator(pairing);
@@ -113,6 +116,22 @@ public sealed class AgentRuntime
             _pendingStateRecoveryIncident = null;
     }
 
+    /// <summary>Set when an admin stops the service (see WinLock.Agent.UI's pairing/setup
+    /// tool) — persisted to disk directly by that tool, since the service is the one being
+    /// stopped and can't record it about itself. Loaded at startup the same way as
+    /// <see cref="PendingStateRecoveryIncident"/>, and sent to every controller on connect
+    /// until a parent acknowledges it.</summary>
+    public ServiceStoppedNotice? PendingServiceStoppedNotice
+    {
+        get { lock (_gate) return _pendingServiceStoppedNotice; }
+    }
+
+    public void AcknowledgeServiceStoppedNotice()
+    {
+        lock (_gate)
+            _pendingServiceStoppedNotice = null;
+    }
+
     /// <summary>For display as a QR code on the lock screen.</summary>
     public OfflineUnlockChallenge IssueOfflineChallenge()
     {
@@ -180,6 +199,7 @@ public sealed class AgentRuntime
                 Pairing = _pairing,
                 Offline = _offlineState,
                 PendingStateRecoveryIncident = _pendingStateRecoveryIncident,
+                PendingServiceStoppedNotice = _pendingServiceStoppedNotice,
             };
     }
 }

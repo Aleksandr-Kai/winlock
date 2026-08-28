@@ -8,6 +8,7 @@ using WinLock.Core.Network;
 using WinLock.Core.State;
 using WinLock.Core.Timing;
 using WinLock.Core.Warnings;
+using WinLock.Core.Windows;
 using WinLock.Service;
 using WinLock.Service.Ipc;
 using WinLock.Service.Network;
@@ -43,7 +44,9 @@ if (string.IsNullOrWhiteSpace(persisted.Pairing.DeviceDisplayName))
     persisted.Pairing.DeviceDisplayName = Environment.MachineName;
 
 var tracker = new UsageTracker(new SystemMonotonicClock(), persisted.Schedule, persisted.Usage);
-var runtime = new AgentRuntime(tracker, persisted.Schedule, persisted.Pairing, persisted.Offline, persisted.PendingStateRecoveryIncident);
+var runtime = new AgentRuntime(
+    tracker, persisted.Schedule, persisted.Pairing, persisted.Offline,
+    persisted.PendingStateRecoveryIncident, persisted.PendingServiceStoppedNotice);
 
 builder.Services.AddSingleton(runtime);
 builder.Services.AddSingleton<IStateStore>(stateStore);

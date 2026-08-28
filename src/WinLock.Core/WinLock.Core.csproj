@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Only DpapiStateProtector (Windows/) needs this; it compiles fine on every platform,
+         and throws PlatformNotSupportedException at runtime if ever called elsewhere. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
 </Project>
