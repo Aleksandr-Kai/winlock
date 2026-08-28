@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 using WinLock.Core.Ipc;
@@ -133,6 +135,32 @@ public partial class LockWindow : Window
         _currentChallengeId = null;
         QrImage.Source = null;
         await _pipeClient.SendAsync(new RequestChallenge(), _cts.Token);
+    }
+
+    /// <summary>This process itself always runs "asInvoker" (see app.manifest) — the lock
+    /// screen must never run elevated. Launching the pairing window still needs admin rights,
+    /// same as the Start Menu shortcut, so it's requested explicitly per-launch via the
+    /// "runas" verb rather than by elevating this whole process.</summary>
+    private void PairingButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var exePath = Process.GetCurrentProcess().MainModule!.FileName!;
+            Process.Start(new ProcessStartInfo(exePath, "--pair")
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+            });
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            // ERROR_CANCELLED: the user (or a child who can't authenticate) dismissed the UAC
+            // prompt — not an error worth surfacing.
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Не удалось открыть окно настройки: {ex.Message}");
+        }
     }
 
     private void SetStatus(string? text) => StatusText.Text = text ?? string.Empty;
