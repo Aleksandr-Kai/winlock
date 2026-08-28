@@ -143,10 +143,11 @@ public partial class LockWindow : Window
     /// "runas" verb rather than by elevating this whole process.</summary>
     private void PairingButton_Click(object sender, RoutedEventArgs e)
     {
+        Process? pairingProcess;
         try
         {
             var exePath = Process.GetCurrentProcess().MainModule!.FileName!;
-            Process.Start(new ProcessStartInfo(exePath, "--pair")
+            pairingProcess = Process.Start(new ProcessStartInfo(exePath, "--pair")
             {
                 UseShellExecute = true,
                 Verb = "runas",
@@ -156,11 +157,32 @@ public partial class LockWindow : Window
         {
             // ERROR_CANCELLED: the user (or a child who can't authenticate) dismissed the UAC
             // prompt — not an error worth surfacing.
+            return;
         }
         catch (Exception ex)
         {
             SetStatus($"Не удалось открыть окно настройки: {ex.Message}");
+            return;
         }
+
+        if (pairingProcess is null)
+            return;
+
+        // The lock screen is deliberately full-screen and Topmost so a child can't get
+        // behind it — but that means it would also sit on top of, and swallow every click
+        // meant for, the pairing window we just launched. The runas prompt above already
+        // proved this launch came from an admin, so it's safe to step out of the way until
+        // that window closes, then reclaim the screen exactly as before.
+        WindowState = WindowState.Minimized;
+        Topmost = false;
+
+        pairingProcess.EnableRaisingEvents = true;
+        pairingProcess.Exited += (_, _) => Dispatcher.Invoke(() =>
+        {
+            Topmost = true;
+            WindowState = WindowState.Normal;
+            Activate();
+        });
     }
 
     private void SetStatus(string? text) => StatusText.Text = text ?? string.Empty;
