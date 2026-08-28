@@ -24,7 +24,13 @@ public sealed class DiscoveryBeacon : IDisposable
     {
         _discovery = new ServiceDiscovery();
 
-        var profile = new ServiceProfile(deviceId.ToString("N"), ServiceType, (ushort)port);
+        // Passing addresses explicitly (rather than leaving them null) skips the library's
+        // own default address selection, which only excludes interfaces whose *type* is
+        // Loopback — the same gap NetworkAddressHelper guards against below. Left to its
+        // defaults, a stray 127.0.0.1 can end up advertised over mDNS, and a phone resolving
+        // the service can land on it instead of the real LAN address.
+        var addresses = NetworkAddressHelper.GetLocalIPv4Addresses().ToArray();
+        var profile = new ServiceProfile(deviceId.ToString("N"), ServiceType, (ushort)port, addresses);
         profile.AddProperty("deviceId", deviceId.ToString("N"));
         profile.AddProperty("displayName", deviceDisplayName);
         _discovery.Advertise(profile);
