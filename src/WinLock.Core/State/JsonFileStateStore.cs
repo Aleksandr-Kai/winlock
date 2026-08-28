@@ -85,7 +85,22 @@ public sealed class JsonFileStateStore : IStateStore
             Directory.CreateDirectory(directory);
 
         var tempPath = _filePath + ".tmp";
-        await File.WriteAllBytesAsync(tempPath, protectedBytes, ct);
+
+        // A rename is atomic, but that alone doesn't survive a hard power-off mid-write — a
+        // plain buffered write can still be sitting in the OS's write-behind cache when power
+        // is cut, so the file that gets renamed into place is missing data even though the
+        // rename itself "succeeded". Flush all the way to disk before the rename so the temp
+        // file is actually durable first; without this, a forced reboot at the wrong moment
+        // could plausibly corrupt state.json and (by design) fail open — see
+        // StateRecoveryIncident.
+        await using (var stream = new FileStream(
+            tempPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true))
+        {
+            await stream.WriteAsync(protectedBytes, ct);
+            await stream.FlushAsync(ct);
+            stream.Flush(flushToDisk: true);
+        }
+
         File.Move(tempPath, _filePath, overwrite: true);
     }
 }

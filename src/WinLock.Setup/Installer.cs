@@ -1,5 +1,6 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
+using Microsoft.Win32;
 
 namespace WinLock.Setup;
 
@@ -64,6 +65,9 @@ public static class Installer
 
         log.Report($"Открываем порт {NetworkPort} в брандмауэре...");
         OpenFirewallPort(Path.Combine(InstallDir, "WinLock.Service.exe"));
+
+        log.Report("Разрешаем запуск службы в безопасном режиме Windows...");
+        EnableSafeModeStartup(ServiceName);
 
         log.Report("Добавляем ярлык «WinLock — Настройка» в меню Пуск...");
         ShortcutCreator.CreatePairingShortcut(InstallDir);
@@ -141,6 +145,41 @@ public static class Installer
             FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
             PropagationFlags.None, AccessControlType.Allow));
         info.SetAccessControl(security);
+    }
+
+    /// <summary>
+    /// A regular Windows service simply never starts in Safe Mode unless it's explicitly
+    /// registered there — a standard child account needs no password or admin rights to reach
+    /// it (a few interrupted boots is enough to trigger Windows' own Automatic Repair menu,
+    /// which offers Safe Mode right there), and without this, Safe Mode is a complete,
+    /// trivial bypass of every lock/schedule this product enforces. Registering under both
+    /// Minimal and Network so it starts either way; the same mechanism antivirus products use
+    /// to keep working (and stay hard to disable) in Safe Mode.
+    /// </summary>
+    private static void EnableSafeModeStartup(string serviceName)
+    {
+        foreach (var safeBootType in new[] { "Minimal", "Network" })
+        {
+            using var key = Registry.LocalMachine.CreateSubKey(
+                $@"SYSTEM\CurrentControlSet\Control\SafeBoot\{safeBootType}\{serviceName}");
+            key.SetValue(null, "Service", RegistryValueKind.String);
+        }
+    }
+
+    public static void DisableSafeModeStartup(string serviceName)
+    {
+        foreach (var safeBootType in new[] { "Minimal", "Network" })
+        {
+            try
+            {
+                Registry.LocalMachine.DeleteSubKey(
+                    $@"SYSTEM\CurrentControlSet\Control\SafeBoot\{safeBootType}\{serviceName}", throwOnMissingSubKey: false);
+            }
+            catch
+            {
+                // Best-effort cleanup only.
+            }
+        }
     }
 
     private static void OpenFirewallPort(string programPath)

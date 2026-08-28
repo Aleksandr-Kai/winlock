@@ -19,6 +19,9 @@ public static class Uninstaller
         ProcessRunner.Run("netsh.exe", "advfirewall", "firewall", "delete", "rule", "name=WinLock Agent");
         ProcessRunner.Run("netsh.exe", "advfirewall", "firewall", "delete", "rule", "name=WinLock Agent (mDNS discovery)");
 
+        log.Report("Убираем разрешение на запуск в безопасном режиме...");
+        Installer.DisableSafeModeStartup(Installer.ServiceName);
+
         log.Report("Удаляем ярлык из меню Пуск...");
         ShortcutCreator.RemovePairingShortcut();
 
