@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using WinLock.Core.Ipc;
 using WinLock.Core.Models;
 
@@ -15,6 +17,8 @@ public partial class LockWindow : Window
 
     private long? _currentChallengeId;
     private bool _allowClose;
+    private DispatcherTimer? _pairingWatchTimer;
+    private bool _pairingWindowSeenInForeground;
 
     public LockWindow()
     {
@@ -171,19 +175,60 @@ public partial class LockWindow : Window
         // The lock screen is deliberately full-screen and Topmost so a child can't get
         // behind it — but that means it would also sit on top of, and swallow every click
         // meant for, the pairing window we just launched. The runas prompt above already
-        // proved this launch came from an admin, so it's safe to step out of the way until
-        // that window closes, then reclaim the screen exactly as before.
+        // proved this launch came from an admin, so it's safe to step out of the way while
+        // that window is actually in use.
         WindowState = WindowState.Minimized;
         Topmost = false;
 
-        pairingProcess.EnableRaisingEvents = true;
-        pairingProcess.Exited += (_, _) => Dispatcher.Invoke(() =>
-        {
-            Topmost = true;
-            WindowState = WindowState.Normal;
-            Activate();
-        });
+        // Stepping aside must not mean "unlocked until the admin remembers to close that
+        // window": alt-tabbing away, minimizing it, or clicking the desktop behind it would
+        // otherwise leave the whole machine open indefinitely. Poll the foreground window
+        // instead of only watching for process exit — the moment focus is anywhere other
+        // than the pairing window, reclaim the screen immediately. The first tick or two
+        // legitimately won't see it yet (the elevated process is still starting up), so only
+        // start enforcing once it's actually been seen in the foreground at least once.
+        _pairingWindowSeenInForeground = false;
+        _pairingWatchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _pairingWatchTimer.Tick += (_, _) => CheckPairingWindowFocus(pairingProcess);
+        _pairingWatchTimer.Start();
     }
+
+    private void CheckPairingWindowFocus(Process pairingProcess)
+    {
+        if (pairingProcess.HasExited)
+        {
+            ReclaimLockScreen();
+            return;
+        }
+
+        var isPairingWindowForeground = GetWindowThreadProcessId(GetForegroundWindow(), out var foregroundPid) != 0
+            && foregroundPid == (uint)pairingProcess.Id;
+
+        if (isPairingWindowForeground)
+        {
+            _pairingWindowSeenInForeground = true;
+            return;
+        }
+
+        if (_pairingWindowSeenInForeground)
+            ReclaimLockScreen(); // focus moved away, or the window was minimized/closed
+    }
+
+    private void ReclaimLockScreen()
+    {
+        _pairingWatchTimer?.Stop();
+        _pairingWatchTimer = null;
+
+        Topmost = true;
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint hWnd, out uint lpdwProcessId);
 
     private void SetStatus(string? text) => StatusText.Text = text ?? string.Empty;
 
@@ -203,6 +248,7 @@ public partial class LockWindow : Window
         }
 
         _cts.Cancel();
+        _pairingWatchTimer?.Stop();
         _keyboardHook.Dispose();
         _pipeClient.Dispose();
         Application.Current.Shutdown();
