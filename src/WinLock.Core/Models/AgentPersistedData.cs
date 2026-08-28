@@ -7,6 +7,5 @@ public sealed class AgentPersistedData
     public UsageState Usage { get; set; } = new();
     public PairingState Pairing { get; set; } = new();
     public OfflineUnlockState Offline { get; set; } = new();
-    public StateRecoveryIncident? PendingStateRecoveryIncident { get; set; }
-    public ServiceStoppedNotice? PendingServiceStoppedNotice { get; set; }
+    public List<PendingNotice> PendingNotices { get; set; } = [];
 }

@@ -43,13 +43,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import com.winlock.parent.data.DeviceStore
 import com.winlock.parent.model.LockReason
+import com.winlock.parent.model.NoticeKind
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.rootCauseMessage
 import com.winlock.parent.protocol.LockReasonText
 import com.winlock.parent.protocol.NetTimeSpan
-import com.winlock.parent.protocol.ServiceStoppedWarning
-import com.winlock.parent.protocol.StateRecoveryWarning
+import com.winlock.parent.protocol.NoticeWarning
 import com.winlock.parent.protocol.StatusUpdate
 import kotlinx.coroutines.launch
 
@@ -58,6 +58,20 @@ private val OfflineColor = Color(0xFFE5484D)
 private val UnlockedColor = Color(0xFF5CE65C)
 private val LockedColor = Color(0xFFE5484D)
 private val UnknownColor = Color(0xFF9AA5B1)
+
+/** Title and explanation for a [NoticeWarning] dialog, by kind — the only per-kind thing left
+ * once persistence/delivery/acknowledgement are all generic over [NoticeWarning]. */
+private fun noticeCopy(kind: NoticeKind): Pair<String, String> = when (kind) {
+    NoticeKind.StateRecovery -> "⚠ Данные на ПК были сброшены" to
+        ("На компьютере не удалось прочитать сохранённые данные, и он начал с чистого листа: " +
+            "расписание, дневной лимит и привязки родителей сброшены (этот телефон остался " +
+            "привязан, раз вы видите это сообщение). Настройте расписание заново.")
+
+    NoticeKind.ServiceStopped -> "⚠ Служба WinLock была остановлена на ПК" to
+        ("Кто-то с правами администратора остановил службу WinLock прямо на компьютере (например, " +
+            "через окно настройки/привязки). Пока служба остановлена, расписание и лимиты времени " +
+            "не действуют.")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,8 +89,7 @@ fun DeviceDetailScreen(
     var status by remember { mutableStateOf<StatusUpdate?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var statusIsError by remember { mutableStateOf(false) }
-    var stateRecoveryWarning by remember { mutableStateOf<StateRecoveryWarning?>(null) }
-    var serviceStoppedWarning by remember { mutableStateOf<ServiceStoppedWarning?>(null) }
+    var noticeWarning by remember { mutableStateOf<NoticeWarning?>(null) }
     var screenshotBytes by remember { mutableStateOf<ByteArray?>(null) }
     var showWheelPicker by remember { mutableStateOf(false) }
 
@@ -88,8 +101,7 @@ fun DeviceDetailScreen(
         val conn = AgentConnection(target)
         connection = conn
         conn.onStatus = { status = it }
-        conn.onStateRecoveryWarning = { stateRecoveryWarning = it }
-        conn.onServiceStoppedWarning = { serviceStoppedWarning = it }
+        conn.onNoticeWarning = { noticeWarning = it }
         conn.onDisconnected = { isConnected = false }
         scope.launch {
             try {
@@ -110,39 +122,14 @@ fun DeviceDetailScreen(
         onDispose { connection?.close() }
     }
 
-    stateRecoveryWarning?.let { warning ->
+    noticeWarning?.let { warning ->
+        val (title, explanation) = noticeCopy(NoticeKind.fromWireValue(warning.kind))
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("⚠ Данные на ПК были сброшены") },
+            title = { Text(title) },
             text = {
                 Text(
-                    "На компьютере не удалось прочитать сохранённые данные, и он начал с чистого " +
-                        "листа: расписание, дневной лимит и привязки родителей сброшены (этот телефон " +
-                        "остался привязан, раз вы видите это сообщение). Настройте расписание заново.\n\n" +
-                        "Когда: ${warning.occurredAtUtc.replace('T', ' ').take(19)} (UTC)\n" +
-                        "Причина: ${warning.reason}",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        connection?.acknowledgeStateRecovery()
-                        stateRecoveryWarning = null
-                    }
-                }) { Text("Понятно") }
-            },
-        )
-    }
-
-    serviceStoppedWarning?.let { warning ->
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("⚠ Служба WinLock была остановлена на ПК") },
-            text = {
-                Text(
-                    "Кто-то с правами администратора остановил службу WinLock прямо на компьютере " +
-                        "(например, через окно настройки/привязки). Пока служба остановлена, расписание " +
-                        "и лимиты времени не действуют.\n\n" +
+                    "$explanation\n\n" +
                         "Когда: ${warning.occurredAtUtc.replace('T', ' ').take(19)} (UTC)\n" +
                         "Подробности: ${warning.reason}",
                 )
@@ -150,8 +137,8 @@ fun DeviceDetailScreen(
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        connection?.acknowledgeServiceStopped()
-                        serviceStoppedWarning = null
+                        connection?.acknowledgeNotice(NoticeKind.fromWireValue(warning.kind))
+                        noticeWarning = null
                     }
                 }) { Text("Понятно") }
             },

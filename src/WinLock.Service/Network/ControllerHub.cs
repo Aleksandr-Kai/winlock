@@ -77,10 +77,8 @@ public sealed class ControllerHub : IAgentStatusPublisher
             await SendAsync(state, BuildStatus(_runtime.Evaluate()), ct); // bring it up to date immediately
             await SendAsync(state, new AgentVersionInfo(AgentVersion.Current), ct);
             await SendAsync(state, new ScheduleSnapshot(_runtime.CurrentSchedule), ct);
-            if (_runtime.PendingStateRecoveryIncident is { } incident)
-                await SendAsync(state, new StateRecoveryWarning(incident.OccurredAtUtc, incident.Reason), ct);
-            if (_runtime.PendingServiceStoppedNotice is { } stoppedNotice)
-                await SendAsync(state, new ServiceStoppedWarning(stoppedNotice.OccurredAtUtc, stoppedNotice.Reason), ct);
+            foreach (var notice in _runtime.PendingNotices)
+                await SendAsync(state, new NoticeWarning(notice.Kind, notice.OccurredAtUtc, notice.Reason), ct);
 
             while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
             {
@@ -161,14 +159,9 @@ public sealed class ControllerHub : IAgentStatusPublisher
                 await PublishAsync(_runtime.Evaluate(), ct);
                 break;
 
-            case AcknowledgeStateRecoveryCommand acknowledge:
-                _runtime.AcknowledgeStateRecoveryIncident();
+            case AcknowledgeNoticeCommand acknowledge:
+                _runtime.AcknowledgeNotice(acknowledge.Kind);
                 await SendAsync(state, new CommandAck(acknowledge.RequestId, true, null), ct);
-                break;
-
-            case AcknowledgeServiceStoppedCommand acknowledgeStopped:
-                _runtime.AcknowledgeServiceStoppedNotice();
-                await SendAsync(state, new CommandAck(acknowledgeStopped.RequestId, true, null), ct);
                 break;
         }
     }

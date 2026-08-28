@@ -127,8 +127,11 @@ public partial class PairingWindow : Window
             var store = new JsonFileStateStore(Path.Combine(dataDir, "state.json"), new DpapiStateProtector());
 
             var data = store.LoadAsync().GetAwaiter().GetResult();
-            data.PendingServiceStoppedNotice = new ServiceStoppedNotice(
-                DateTimeOffset.UtcNow, "Остановлена вручную через окно настройки/привязки на ПК.");
+            // Replace, don't accumulate: repeated stops before a parent ever sees the first
+            // one would otherwise pile up duplicate notices for the same kind.
+            data.PendingNotices.RemoveAll(n => n.Kind == NoticeKind.ServiceStopped);
+            data.PendingNotices.Add(new PendingNotice(
+                NoticeKind.ServiceStopped, DateTimeOffset.UtcNow, "Остановлена вручную через окно настройки/привязки на ПК."));
             store.SaveAsync(data).GetAwaiter().GetResult();
         }
         catch

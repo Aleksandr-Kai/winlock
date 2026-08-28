@@ -22,23 +22,20 @@ public sealed class AgentRuntime
     private ScheduleConfig _schedule;
     private readonly PairingState _pairing;
     private readonly OfflineUnlockState _offlineState;
-    private StateRecoveryIncident? _pendingStateRecoveryIncident;
-    private ServiceStoppedNotice? _pendingServiceStoppedNotice;
+    private readonly List<PendingNotice> _pendingNotices;
 
     public AgentRuntime(
         UsageTracker tracker,
         ScheduleConfig initialSchedule,
         PairingState pairing,
         OfflineUnlockState offlineState,
-        StateRecoveryIncident? pendingStateRecoveryIncident = null,
-        ServiceStoppedNotice? pendingServiceStoppedNotice = null)
+        IEnumerable<PendingNotice>? pendingNotices = null)
     {
         _tracker = tracker;
         _schedule = initialSchedule;
         _pairing = pairing;
         _offlineState = offlineState;
-        _pendingStateRecoveryIncident = pendingStateRecoveryIncident;
-        _pendingServiceStoppedNotice = pendingServiceStoppedNotice;
+        _pendingNotices = pendingNotices?.ToList() ?? [];
         _offlineUnlock = new OfflineUnlockService(pairing, offlineState);
         _pairingService = new PairingService(pairing);
         _authenticator = new ControllerAuthenticator(pairing);
@@ -102,34 +99,19 @@ public sealed class AgentRuntime
             return _tracker.TryClearManualLock();
     }
 
-    /// <summary>Set once, at startup, if the persisted state couldn't be read and the agent
-    /// had to fall back to a fresh, empty one — see JsonFileStateStore. Sent to every
-    /// controller on connect until a parent acknowledges it.</summary>
-    public StateRecoveryIncident? PendingStateRecoveryIncident
+    /// <summary>Everything a parent needs to be told about even if no phone was connected at
+    /// the moment it happened — state recovery, the service being stopped, and any future
+    /// kind added to <see cref="NoticeKind"/>. Sent to every controller on connect; each one
+    /// stays here until acknowledged by kind (see <see cref="AcknowledgeNotice"/>).</summary>
+    public IReadOnlyList<PendingNotice> PendingNotices
     {
-        get { lock (_gate) return _pendingStateRecoveryIncident; }
+        get { lock (_gate) return _pendingNotices.ToList(); }
     }
 
-    public void AcknowledgeStateRecoveryIncident()
+    public void AcknowledgeNotice(NoticeKind kind)
     {
         lock (_gate)
-            _pendingStateRecoveryIncident = null;
-    }
-
-    /// <summary>Set when an admin stops the service (see WinLock.Agent.UI's pairing/setup
-    /// tool) — persisted to disk directly by that tool, since the service is the one being
-    /// stopped and can't record it about itself. Loaded at startup the same way as
-    /// <see cref="PendingStateRecoveryIncident"/>, and sent to every controller on connect
-    /// until a parent acknowledges it.</summary>
-    public ServiceStoppedNotice? PendingServiceStoppedNotice
-    {
-        get { lock (_gate) return _pendingServiceStoppedNotice; }
-    }
-
-    public void AcknowledgeServiceStoppedNotice()
-    {
-        lock (_gate)
-            _pendingServiceStoppedNotice = null;
+            _pendingNotices.RemoveAll(n => n.Kind == kind);
     }
 
     /// <summary>For display as a QR code on the lock screen.</summary>
@@ -198,8 +180,7 @@ public sealed class AgentRuntime
                 Usage = _tracker.State,
                 Pairing = _pairing,
                 Offline = _offlineState,
-                PendingStateRecoveryIncident = _pendingStateRecoveryIncident,
-                PendingServiceStoppedNotice = _pendingServiceStoppedNotice,
+                PendingNotices = _pendingNotices.ToList(),
             };
     }
 }

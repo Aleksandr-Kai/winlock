@@ -11,8 +11,7 @@ namespace WinLock.Core.Network;
 [JsonDerivedType(typeof(CommandAck), "ack")]
 [JsonDerivedType(typeof(ScreenshotResult), "screenshotResult")]
 [JsonDerivedType(typeof(ScheduleSnapshot), "scheduleSnapshot")]
-[JsonDerivedType(typeof(StateRecoveryWarning), "stateRecoveryWarning")]
-[JsonDerivedType(typeof(ServiceStoppedWarning), "serviceStoppedWarning")]
+[JsonDerivedType(typeof(NoticeWarning), "noticeWarning")]
 [JsonDerivedType(typeof(AgentVersionInfo), "agentVersion")]
 public abstract record ServerToControllerMessage;
 
@@ -50,17 +49,11 @@ public sealed record ScreenshotResult(
 /// freshly opened app doesn't show empty/default fields for a device that already has one.</summary>
 public sealed record ScheduleSnapshot(ScheduleConfig Schedule) : ServerToControllerMessage;
 
-/// <summary>The PC had to fall back to a fresh, empty state because the previously persisted
-/// one was unreadable — schedule, pairings, and certificate were all reset at once. Sent to
-/// every controller on connect until a parent acknowledges it with AcknowledgeStateRecoveryCommand,
-/// since none may have been connected at the moment it happened.</summary>
-public sealed record StateRecoveryWarning(DateTimeOffset OccurredAtUtc, string Reason) : ServerToControllerMessage;
-
-/// <summary>An administrator stopped the WinLock service — every protection this product
-/// enforces is off until it's started again. Sent to every controller on connect until a
-/// parent acknowledges it with AcknowledgeServiceStoppedCommand, since none may have been
-/// connected at the moment it happened.</summary>
-public sealed record ServiceStoppedWarning(DateTimeOffset OccurredAtUtc, string Reason) : ServerToControllerMessage;
+/// <summary>Wire form of a <see cref="PendingNotice"/> — see <see cref="NoticeKind"/> for what
+/// each kind means. Sent to every controller on connect for every notice still pending, until
+/// a parent acknowledges it with AcknowledgeNoticeCommand, since none may have been connected
+/// at the moment it actually happened.</summary>
+public sealed record NoticeWarning(NoticeKind Kind, DateTimeOffset OccurredAtUtc, string Reason) : ServerToControllerMessage;
 
 /// <summary>The PC agent's version (see <see cref="WinLock.Core.AgentVersion"/>), sent once
 /// right after a controller authenticates — a parent has no other way to tell, short of

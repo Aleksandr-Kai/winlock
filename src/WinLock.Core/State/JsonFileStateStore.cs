@@ -45,7 +45,7 @@ public sealed class JsonFileStateStore : IStateStore
             var reason = TryPreserveUnreadableFile(ex);
             return new AgentPersistedData
             {
-                PendingStateRecoveryIncident = new StateRecoveryIncident(DateTimeOffset.UtcNow, reason),
+                PendingNotices = [new PendingNotice(NoticeKind.StateRecovery, DateTimeOffset.UtcNow, reason)],
             };
         }
     }
@@ -92,7 +92,7 @@ public sealed class JsonFileStateStore : IStateStore
         // rename itself "succeeded". Flush all the way to disk before the rename so the temp
         // file is actually durable first; without this, a forced reboot at the wrong moment
         // could plausibly corrupt state.json and (by design) fail open — see
-        // StateRecoveryIncident.
+        // NoticeKind.StateRecovery above.
         await using (var stream = new FileStream(
             tempPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true))
         {

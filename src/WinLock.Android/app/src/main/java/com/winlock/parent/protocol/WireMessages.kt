@@ -73,24 +73,13 @@ data class ScheduleSnapshot(
     @SerialName("Schedule") val schedule: ScheduleConfig,
 ) : ServerToControllerMessage()
 
-/** The PC had to fall back to a fresh, empty state because the previously persisted one was
- * unreadable — schedule, pairings, and certificate were all reset at once. Sent on connect
- * until acknowledged with [AcknowledgeStateRecoveryCommand], since no phone may have been
- * connected at the moment it actually happened. */
+/** Something a parent needs to be told about even if no phone was connected at the moment it
+ * happened — see [com.winlock.parent.model.NoticeKind] for what [kind] can mean. Sent on
+ * connect for every notice still pending, until acknowledged with [AcknowledgeNoticeCommand]. */
 @Serializable
-@SerialName("stateRecoveryWarning")
-data class StateRecoveryWarning(
-    @SerialName("OccurredAtUtc") val occurredAtUtc: String,
-    @SerialName("Reason") val reason: String,
-) : ServerToControllerMessage()
-
-/** An administrator stopped the WinLock service directly on the PC (e.g. to recover a broken
- * pairing) — every protection this product enforces is off until it's started again. Sent on
- * connect until acknowledged with [AcknowledgeServiceStoppedCommand], since no phone may have
- * been connected at the moment it actually happened. */
-@Serializable
-@SerialName("serviceStoppedWarning")
-data class ServiceStoppedWarning(
+@SerialName("noticeWarning")
+data class NoticeWarning(
+    @SerialName("Kind") val kind: Int,
     @SerialName("OccurredAtUtc") val occurredAtUtc: String,
     @SerialName("Reason") val reason: String,
 ) : ServerToControllerMessage()
@@ -157,18 +146,12 @@ data class UnlockNowCommand(
     @SerialName("RequestId") val requestId: String,
 ) : ControllerToServerMessage()
 
-/** Clears a pending [StateRecoveryWarning] once a parent has seen it. */
+/** Clears one pending [NoticeWarning] (by kind) once a parent has seen it. */
 @Serializable
-@SerialName("acknowledgeStateRecovery")
-data class AcknowledgeStateRecoveryCommand(
+@SerialName("acknowledgeNotice")
+data class AcknowledgeNoticeCommand(
     @SerialName("RequestId") val requestId: String,
-) : ControllerToServerMessage()
-
-/** Clears a pending [ServiceStoppedWarning] once a parent has seen it. */
-@Serializable
-@SerialName("acknowledgeServiceStopped")
-data class AcknowledgeServiceStoppedCommand(
-    @SerialName("RequestId") val requestId: String,
+    @SerialName("Kind") val kind: Int,
 ) : ControllerToServerMessage()
 
 @Serializable

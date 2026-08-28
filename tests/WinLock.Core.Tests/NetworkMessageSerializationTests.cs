@@ -16,7 +16,7 @@ public class NetworkMessageSerializationTests
             new StatusUpdate(Guid.NewGuid(), "Kid's PC", true, LockReason.BudgetExhausted, TimeSpan.FromMinutes(5)),
             new CommandAck("req-1", false, "nope"),
             new ScreenshotResult("req-2", true, null, "base64==", DateTimeOffset.UtcNow),
-            new StateRecoveryWarning(DateTimeOffset.UtcNow, "IOException: disk hiccup"),
+            new NoticeWarning(NoticeKind.StateRecovery, DateTimeOffset.UtcNow, "IOException: disk hiccup"),
             new AgentVersionInfo("1.0.0"),
         ];
 
@@ -47,7 +47,7 @@ public class NetworkMessageSerializationTests
             new SetRemainingTimeCommand("req-1b", 360),
             new UpdateScheduleCommand("req-2", schedule),
             new RequestScreenshotCommand("req-3"),
-            new AcknowledgeStateRecoveryCommand("req-4"),
+            new AcknowledgeNoticeCommand("req-4", NoticeKind.StateRecovery),
         ];
 
         foreach (var message in messages)

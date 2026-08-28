@@ -12,8 +12,7 @@ namespace WinLock.Core.Network;
 [JsonDerivedType(typeof(RequestScreenshotCommand), "requestScreenshot")]
 [JsonDerivedType(typeof(LockNowCommand), "lockNow")]
 [JsonDerivedType(typeof(UnlockNowCommand), "unlockNow")]
-[JsonDerivedType(typeof(AcknowledgeStateRecoveryCommand), "acknowledgeStateRecovery")]
-[JsonDerivedType(typeof(AcknowledgeServiceStoppedCommand), "acknowledgeServiceStopped")]
+[JsonDerivedType(typeof(AcknowledgeNoticeCommand), "acknowledgeNotice")]
 public abstract record ControllerToServerMessage;
 
 /// <summary>Reply to <see cref="AuthChallenge"/>: proves possession of this controller's
@@ -39,10 +38,7 @@ public sealed record LockNowCommand(string RequestId) : ControllerToServerMessag
 /// run out — the schedule would just re-lock it immediately otherwise.</summary>
 public sealed record UnlockNowCommand(string RequestId) : ControllerToServerMessage;
 
-/// <summary>Clears a pending StateRecoveryWarning once a parent has seen it — the only thing
-/// that clears it, since it's meant to survive until someone actually notices.</summary>
-public sealed record AcknowledgeStateRecoveryCommand(string RequestId) : ControllerToServerMessage;
-
-/// <summary>Clears a pending ServiceStoppedWarning once a parent has seen it — the only thing
-/// that clears it, since it's meant to survive until someone actually notices.</summary>
-public sealed record AcknowledgeServiceStoppedCommand(string RequestId) : ControllerToServerMessage;
+/// <summary>Clears one pending <see cref="NoticeWarning"/> (by kind) once a parent has seen
+/// it — the only thing that clears it, since it's meant to survive until someone actually
+/// notices.</summary>
+public sealed record AcknowledgeNoticeCommand(string RequestId, NoticeKind Kind) : ControllerToServerMessage;
