@@ -46,6 +46,7 @@ import com.winlock.parent.model.LockReason
 import com.winlock.parent.model.NoticeKind
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.network.AgentConnection
+import com.winlock.parent.network.connectReporting
 import com.winlock.parent.network.rootCauseMessage
 import com.winlock.parent.protocol.LockReasonText
 import com.winlock.parent.protocol.NetTimeSpan
@@ -104,13 +105,10 @@ fun DeviceDetailScreen(
         conn.onNoticeWarning = { noticeWarning = it }
         conn.onDisconnected = { isConnected = false }
         scope.launch {
-            try {
-                conn.connect()
-                isConnected = true
-            } catch (e: Exception) {
-                statusMessage = "Не удалось подключиться: ${e.rootCauseMessage()}"
-                statusIsError = true
-            }
+            conn.connectReporting(
+                onSuccess = { isConnected = true },
+                onFailure = { e -> statusMessage = "Не удалось подключиться: ${e.rootCauseMessage()}"; statusIsError = true },
+            )
         }
     }
 

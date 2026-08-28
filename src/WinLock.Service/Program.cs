@@ -19,14 +19,7 @@ using WinLock.Service.Security;
 const int NetworkPort = 51843;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddWindowsService(options => options.ServiceName = "WinLock Agent");
-
-// Overridable so this can run and be tested (e.g. against the controller stub) without
-// permission to write %ProgramData% — on the real Windows deployment the service runs as
-// SYSTEM, which always can, so this only ever matters for local dev/test.
-var dataDir = Environment.GetEnvironmentVariable("WINLOCK_DATA_DIR")
-    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "WinLock");
-var stateFilePath = Path.Combine(dataDir, "state.json");
+builder.Services.AddWindowsService(options => options.ServiceName = ServiceControl.ServiceName);
 
 // DPAPI is Windows-only; the state store still needs to build and run in tests/dev on
 // other platforms, so fall back to a pass-through protector there.
@@ -34,7 +27,7 @@ IStateProtector protector = OperatingSystem.IsWindows()
     ? new DpapiStateProtector()
     : new NullStateProtector();
 
-var stateStore = new JsonFileStateStore(stateFilePath, protector);
+var stateStore = new JsonFileStateStore(AgentDataPaths.StateFilePath, protector);
 
 // Loaded once, synchronously, at startup: it's a small local file read, and the rest of
 // the host's DI graph (the runtime, the worker) is built from its result.
@@ -79,7 +72,7 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Listen(IPAddress.Any, NetworkPort, listenOptions => listenOptions.UseHttps(certificate));
 });
 
-builder.Services.AddSingleton(sp => new ScreenCaptureCoordinator(sp.GetRequiredService<ILogger<ScreenCaptureCoordinator>>(), dataDir));
+builder.Services.AddSingleton(sp => new ScreenCaptureCoordinator(sp.GetRequiredService<ILogger<ScreenCaptureCoordinator>>(), AgentDataPaths.DataDir));
 builder.Services.AddSingleton<ControllerHub>();
 builder.Services.AddSingleton<IAgentStatusPublisher>(sp => sp.GetRequiredService<ControllerHub>());
 

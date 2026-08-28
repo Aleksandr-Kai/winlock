@@ -33,6 +33,7 @@ import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.model.ScheduleConfig
 import com.winlock.parent.model.TimeWindow
 import com.winlock.parent.network.AgentConnection
+import com.winlock.parent.network.connectReporting
 import kotlinx.coroutines.launch
 
 private val Days = listOf(
@@ -75,12 +76,10 @@ fun DeviceScheduleScreen(
                 }
             }
             scope.launch {
-                try {
-                    conn.connect()
-                } catch (e: Exception) {
-                    statusMessage = "Не удалось подключиться к ПК."
-                    statusIsError = true
-                }
+                conn.connectReporting(
+                    onSuccess = {},
+                    onFailure = { statusMessage = "Не удалось подключиться к ПК."; statusIsError = true },
+                )
             }
         }
 

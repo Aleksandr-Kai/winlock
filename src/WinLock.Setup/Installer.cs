@@ -15,7 +15,7 @@ public sealed class InstallException(string message) : Exception(message);
 /// </summary>
 public static class Installer
 {
-    public const string ServiceName = "WinLock Agent";
+    public const string ServiceName = WinLock.Core.Windows.ServiceControl.ServiceName;
     private const string ServiceDescription = "Контроль и ограничение времени использования компьютера. Не останавливайте эту службу.";
     private const string FirewallRuleName = "WinLock Agent";
     private const string MdnsFirewallRuleName = "WinLock Agent (mDNS discovery)";

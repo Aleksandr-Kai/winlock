@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using WinLock.Core.Ipc;
@@ -122,9 +121,7 @@ public partial class PairingWindow : Window
     {
         try
         {
-            var dataDir = Environment.GetEnvironmentVariable("WINLOCK_DATA_DIR")
-                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "WinLock");
-            var store = new JsonFileStateStore(Path.Combine(dataDir, "state.json"), new DpapiStateProtector());
+            var store = new JsonFileStateStore(AgentDataPaths.StateFilePath, new DpapiStateProtector());
 
             var data = store.LoadAsync().GetAwaiter().GetResult();
             // Replace, don't accumulate: repeated stops before a parent ever sees the first

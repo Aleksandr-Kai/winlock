@@ -120,24 +120,15 @@ class AgentConnection(private val device: PairedDevice) {
         cont.invokeOnCancellation { socket?.cancel() }
     }
 
-    suspend fun extendTime(minutes: Int): Boolean {
-        val requestId = newRequestId()
-        val result = sendAndWait(requestId, ExtendTimeCommand(requestId, minutes))
-        return (result as? CommandAck)?.success == true
-    }
+    suspend fun extendTime(minutes: Int): Boolean =
+        sendCommandExpectingAck { ExtendTimeCommand(it, minutes) }
 
     /** Sets today's remaining budget to an exact value, instead of adding to it. */
-    suspend fun setRemainingTime(minutes: Int): Boolean {
-        val requestId = newRequestId()
-        val result = sendAndWait(requestId, SetRemainingTimeCommand(requestId, minutes))
-        return (result as? CommandAck)?.success == true
-    }
+    suspend fun setRemainingTime(minutes: Int): Boolean =
+        sendCommandExpectingAck { SetRemainingTimeCommand(it, minutes) }
 
-    suspend fun updateSchedule(schedule: ScheduleConfig): Boolean {
-        val requestId = newRequestId()
-        val result = sendAndWait(requestId, UpdateScheduleCommand(requestId, schedule))
-        return (result as? CommandAck)?.success == true
-    }
+    suspend fun updateSchedule(schedule: ScheduleConfig): Boolean =
+        sendCommandExpectingAck { UpdateScheduleCommand(it, schedule) }
 
     suspend fun requestScreenshot(): ScreenshotResult {
         val requestId = newRequestId()
@@ -145,11 +136,8 @@ class AgentConnection(private val device: PairedDevice) {
     }
 
     /** Always succeeds. */
-    suspend fun lockNow(): Boolean {
-        val requestId = newRequestId()
-        val result = sendAndWait(requestId, LockNowCommand(requestId))
-        return (result as? CommandAck)?.success == true
-    }
+    suspend fun lockNow(): Boolean =
+        sendCommandExpectingAck { LockNowCommand(it) }
 
     /** Can fail — see [CommandAck.errorMessage] on a false result — if the PC's budget has
      * since run out; the caller should surface that message rather than just "didn't work". */
@@ -158,9 +146,14 @@ class AgentConnection(private val device: PairedDevice) {
         return sendAndWait(requestId, UnlockNowCommand(requestId)) as CommandAck
     }
 
-    suspend fun acknowledgeNotice(kind: NoticeKind): Boolean {
+    suspend fun acknowledgeNotice(kind: NoticeKind): Boolean =
+        sendCommandExpectingAck { AcknowledgeNoticeCommand(it, kind.ordinal) }
+
+    /** Shared shape behind most commands: build one (given the fresh request ID it must carry),
+     * send it, and report whether the PC's [CommandAck] said it succeeded. */
+    private suspend fun sendCommandExpectingAck(build: (requestId: String) -> ControllerToServerMessage): Boolean {
         val requestId = newRequestId()
-        val result = sendAndWait(requestId, AcknowledgeNoticeCommand(requestId, kind.ordinal))
+        val result = sendAndWait(requestId, build(requestId))
         return (result as? CommandAck)?.success == true
     }
 
@@ -191,5 +184,18 @@ class AgentConnection(private val device: PairedDevice) {
     fun close() {
         socket?.close(1000, "bye")
         client?.dispatcher?.executorService?.shutdown()
+    }
+}
+
+/** The try/connect/catch every device screen's own startConnection() repeats around
+ * [AgentConnection.connect] — each screen still owns wiring its own onStatus/onSchedule/etc.
+ * callbacks and creating the connection itself, since those genuinely differ per screen; this
+ * only shares the boilerplate around reporting whether the attempt succeeded. */
+suspend fun AgentConnection.connectReporting(onSuccess: () -> Unit, onFailure: (Exception) -> Unit) {
+    try {
+        connect()
+        onSuccess()
+    } catch (e: Exception) {
+        onFailure(e)
     }
 }

@@ -31,6 +31,7 @@ import com.winlock.parent.data.DeviceStore
 import com.winlock.parent.model.PairedDevice
 import com.winlock.parent.network.AgentConnection
 import com.winlock.parent.network.DiscoveryClient
+import com.winlock.parent.network.connectReporting
 import com.winlock.parent.network.rootCauseMessage
 import kotlinx.coroutines.launch
 
@@ -59,14 +60,10 @@ fun DeviceSettingsScreen(
         val conn = AgentConnection(target)
         connection = conn
         scope.launch {
-            try {
-                conn.connect()
-                statusMessage = "Подключено."
-                statusIsError = false
-            } catch (e: Exception) {
-                statusMessage = "Не удалось подключиться: ${e.rootCauseMessage()}"
-                statusIsError = true
-            }
+            conn.connectReporting(
+                onSuccess = { statusMessage = "Подключено."; statusIsError = false },
+                onFailure = { e -> statusMessage = "Не удалось подключиться: ${e.rootCauseMessage()}"; statusIsError = true },
+            )
         }
     }
 
