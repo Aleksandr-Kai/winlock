@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 using WinLock.Core.Ipc;
@@ -90,10 +91,45 @@ public partial class PairingWindow : Window
 
         await Task.Run(() => ServiceControl.Stop(ServiceControl.ServiceName));
 
+        // The lock screen can only ever be dismissed by the service validating an unlock
+        // code — with the service stopped, it would otherwise sit there retrying the pipe
+        // forever with no way out at all. Stopping the service is already a full,
+        // authenticated bypass of every protection this product enforces, so releasing the
+        // lock screen at the same moment doesn't open anything that wasn't already open; and
+        // with the service down, its watchdog won't relaunch it either.
+        var closedLockScreen = await Task.Run(CloseOtherAgentUiProcesses);
+
         QrImage.Source = null;
         QrTextBox.Text = string.Empty;
         UpdateServiceButtons(false);
-        StatusText.Text = "Служба остановлена.";
+        StatusText.Text = closedLockScreen
+            ? "Служба остановлена, экран блокировки закрыт вместе с ней."
+            : "Служба остановлена.";
+    }
+
+    private static bool CloseOtherAgentUiProcesses()
+    {
+        var currentPid = Environment.ProcessId;
+        var closedAny = false;
+        foreach (var process in Process.GetProcessesByName("WinLock.Agent.UI"))
+        {
+            using (process)
+            {
+                if (process.Id == currentPid)
+                    continue;
+                try
+                {
+                    process.Kill();
+                    closedAny = true;
+                }
+                catch
+                {
+                    // already exiting on its own — fine either way
+                }
+            }
+        }
+
+        return closedAny;
     }
 
     private void OnMessageReceived(ServiceToUiMessage message)
