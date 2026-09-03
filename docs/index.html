@@ -268,6 +268,8 @@ dialog#bugReportDialog ul{margin:0 0 16px;padding-left:20px;display:grid;gap:10p
 dialog#bugReportDialog li{font-size:.92rem;line-height:1.5}
 dialog#bugReportDialog .dialog-foot{font-size:.9rem;color:var(--text-dim);margin:0 0 22px}
 dialog#bugReportDialog .dialog-foot a{color:#b5791c;font-weight:600}
+dialog#bugReportDialog .btn-ghost{color:var(--text);border-color:var(--paper-line)}
+dialog#bugReportDialog .btn-ghost:hover{border-color:var(--text-dim)}
 
 footer{border-top:1px solid var(--navy-line);padding:40px 0;color:var(--ink-dim);font-size:.86rem}
 footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
@@ -550,7 +552,7 @@ footer .links{display:flex;gap:22px;flex-wrap:wrap}
       <p>
         Версия ещё дорабатывается — пожелания, предложения и баг-репорты пишите
         <a href="https://t.me/aleksandr_kai">в Telegram</a>, это правда помогает.
-        <button type="button" class="link-btn" id="bugReportOpen">Как составить баг-репорт</button>
+        <button type="button" class="link-btn" id="bugReportOpen">Как сообщить об ошибке</button>
       </p>
     </div>
   </div>
@@ -558,7 +560,7 @@ footer .links{display:flex;gap:22px;flex-wrap:wrap}
 
 <dialog id="bugReportDialog">
   <form method="dialog">
-    <h3>Как составить баг-репорт</h3>
+    <h3>Как сообщить об ошибке</h3>
     <ul>
       <li><strong>Что делали</strong> — что нажали перед тем, как что-то пошло не так.</li>
       <li><strong>Что случилось</strong> — своими словами; если было сообщение об ошибке —
