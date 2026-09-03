@@ -239,6 +239,34 @@ h1 .accent{color:var(--amber)}
 .dl-buttons{display:flex;flex-direction:column;gap:12px;min-width:230px}
 
 /* footer */
+/* beta note */
+.beta-strip{background:var(--navy-950);padding:0 0 28px}
+.beta-strip p{
+  margin:0;text-align:center;font-size:.86rem;color:var(--ink-dim);
+  display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;
+}
+.beta-strip a{color:var(--ink-dim);text-decoration:underline;text-underline-offset:2px}
+.beta-strip a:hover{color:var(--ink)}
+.link-btn{
+  background:none;border:none;padding:0;font:inherit;color:var(--ink-dim);
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer;
+}
+.link-btn:hover{color:var(--ink)}
+
+/* bug report dialog */
+dialog#bugReportDialog{
+  border:none;border-radius:18px;padding:0;max-width:440px;width:calc(100% - 48px);
+  background:var(--paper);color:var(--text);
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.5);
+}
+dialog#bugReportDialog::backdrop{background:rgba(10,14,26,.6);backdrop-filter:blur(2px)}
+dialog#bugReportDialog form{padding:30px}
+dialog#bugReportDialog h3{font-size:1.15rem;margin-bottom:16px}
+dialog#bugReportDialog ul{margin:0 0 16px;padding-left:20px;display:grid;gap:10px}
+dialog#bugReportDialog li{font-size:.92rem;line-height:1.5}
+dialog#bugReportDialog .dialog-foot{font-size:.9rem;color:var(--text-dim);margin:0 0 22px}
+dialog#bugReportDialog .dialog-foot a{color:#b5791c;font-weight:600}
+
 footer{border-top:1px solid var(--navy-line);padding:40px 0;color:var(--ink-dim);font-size:.86rem}
 footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
 footer a{text-decoration:none;color:var(--ink-dim)}
@@ -351,8 +379,7 @@ footer .links{display:flex;gap:22px;flex-wrap:wrap}
       <div class="step">
         <div class="num">01</div>
         <h3>Установите на ПК ребёнка</h3>
-        <p>Один exe-файл, графический установщик с запросом прав администратора — без
-          консоли и PowerShell.</p>
+        <p>Один exe-файл, графический установщик с запросом прав администратора.</p>
       </div>
       <div class="step">
         <div class="num">02</div>
@@ -515,6 +542,32 @@ footer .links{display:flex;gap:22px;flex-wrap:wrap}
   </div>
 </section>
 
+<div class="beta-strip">
+  <div class="wrap">
+    <p>
+      Версия ещё дорабатывается — если что-то пойдёт не так, напишите
+      <a href="https://t.me/aleksandr_kai">в Telegram</a>, это правда помогает.
+      <button type="button" class="link-btn" id="bugReportOpen">Как составить баг-репорт</button>
+    </p>
+  </div>
+</div>
+
+<dialog id="bugReportDialog">
+  <form method="dialog">
+    <h3>Как составить баг-репорт</h3>
+    <ul>
+      <li><strong>Что делали</strong> — что нажали перед тем, как что-то пошло не так.</li>
+      <li><strong>Что случилось</strong> — своими словами; если было сообщение об ошибке —
+        сфотографируйте его или скопируйте текст.</li>
+      <li><strong>Что ожидали</strong> — как должно было быть.</li>
+      <li><strong>На чём</strong> — версия Windows на ПК и модель/версия Android-телефона.</li>
+    </ul>
+    <p class="dialog-foot">Пришлите это в <a href="https://t.me/aleksandr_kai">Telegram</a> —
+      обычно этого достаточно, чтобы разобраться.</p>
+    <button class="btn btn-ghost" value="cancel">Закрыть</button>
+  </form>
+</dialog>
+
 <footer>
   <div class="wrap">
     <span>© 2026 WinLock. Некоммерческий проект, публикуется как есть, без гарантий.</span>
@@ -525,6 +578,16 @@ footer .links{display:flex;gap:22px;flex-wrap:wrap}
     </div>
   </div>
 </footer>
+
+<script>
+  var bugDialog = document.getElementById('bugReportDialog');
+  document.getElementById('bugReportOpen').addEventListener('click', function () {
+    bugDialog.showModal();
+  });
+  bugDialog.addEventListener('click', function (e) {
+    if (e.target === bugDialog) bugDialog.close();
+  });
+</script>
 
 </body>
 </html>
