@@ -23,6 +23,27 @@ public class UsageTrackerTests
         return (tracker, clock);
     }
 
+    /// <summary>Advances through genuinely continuous active use by calling Evaluate() every
+    /// 5 seconds — the real cadence EnforcementWorker actually polls at — rather than one
+    /// unrealistically large single jump, which UsageTracker's per-evaluation charge cap
+    /// would otherwise clip (exactly as it's meant to for a real gap that size, e.g. sleep;
+    /// see the Evaluate_CapsChargeableTime... tests below). Returns the final decision.</summary>
+    private static LockDecision TickThroughActiveUse(UsageTracker tracker, FakeClock clock, TimeSpan totalActiveTime)
+    {
+        var step = TimeSpan.FromSeconds(5);
+        var remaining = totalActiveTime;
+        LockDecision? decision = null;
+        while (remaining > TimeSpan.Zero)
+        {
+            var thisStep = remaining < step ? remaining : step;
+            clock.Advance(thisStep);
+            decision = tracker.Evaluate();
+            remaining -= thisStep;
+        }
+
+        return decision ?? tracker.Evaluate();
+    }
+
     [Fact]
     public void Evaluate_NeverLocks_OnAnUnconfiguredDevice_RegardlessOfScheduleOrBudget()
     {
@@ -57,8 +78,7 @@ public class UsageTrackerTests
         var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 60));
         tracker.Evaluate(); // establishes anchors
 
-        clock.Advance(TimeSpan.FromMinutes(20));
-        var decision = tracker.Evaluate();
+        var decision = TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(20));
 
         Assert.False(decision.ShouldBeLocked);
         Assert.Equal(TimeSpan.FromMinutes(40), decision.RemainingBudget);
@@ -70,8 +90,7 @@ public class UsageTrackerTests
         var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 30));
         tracker.Evaluate();
 
-        clock.Advance(TimeSpan.FromMinutes(45));
-        var decision = tracker.Evaluate();
+        var decision = TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(45));
 
         Assert.True(decision.ShouldBeLocked);
         Assert.Equal(LockReason.BudgetExhausted, decision.Reason);
@@ -260,8 +279,7 @@ public class UsageTrackerTests
     {
         var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 60));
         tracker.Evaluate();
-        clock.Advance(TimeSpan.FromMinutes(50));
-        tracker.Evaluate();
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(50));
         Assert.Equal(TimeSpan.FromMinutes(10), tracker.State.RemainingBudget);
 
         clock.Advance(TimeSpan.FromHours(20)); // crosses into the next day
@@ -276,8 +294,7 @@ public class UsageTrackerTests
     {
         var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
         tracker.Evaluate();
-        clock.Advance(TimeSpan.FromMinutes(60)); // half the day's budget used
-        tracker.Evaluate();
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(60)); // half the day's budget used
         tracker.ExtendTime(TimeSpan.FromMinutes(30)); // plus a bonus grant
         Assert.Equal(TimeSpan.FromMinutes(90), tracker.State.RemainingBudget);
 
@@ -346,8 +363,7 @@ public class UsageTrackerTests
     {
         var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 60));
         tracker.Evaluate();
-        clock.Advance(TimeSpan.FromMinutes(10));
-        tracker.Evaluate();
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(10));
         Assert.Equal(TimeSpan.FromMinutes(50), tracker.State.RemainingBudget);
 
         tracker.SetManualLock();
@@ -396,8 +412,7 @@ public class UsageTrackerTests
     {
         var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 10));
         tracker.Evaluate();
-        clock.Advance(TimeSpan.FromMinutes(10)); // burns the whole daily budget
-        tracker.Evaluate();
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(10)); // burns the whole daily budget
         tracker.SetManualLock();
         tracker.Evaluate();
 
@@ -408,5 +423,64 @@ public class UsageTrackerTests
         Assert.True(decision.ShouldBeLocked);
         // Still reported as the manual lock, since it was never actually lifted.
         Assert.Equal(LockReason.ManuallyLocked, decision.Reason);
+    }
+
+    [Fact]
+    public void Evaluate_CapsChargeableTime_WhenGapIsMuchLargerThanNormalPolling()
+    {
+        // Real-world bug report this guards against: parent turns the PC on (fresh 2-hour
+        // budget), uses it briefly, closes the lid (sleeps). Environment.TickCount64 — what
+        // the monotonic clock is backed by — is NOT paused by sleep, only a real reboot
+        // resets it, and the real EnforcementWorker only calls Evaluate() again once the
+        // process actually resumes running. So from here, a real sleep looks exactly like
+        // this: one large single jump between two consecutive Evaluate() calls (unlike
+        // genuine continuous use, which arrives as many small ~5-second ticks — see
+        // TickThroughActiveUse). Without a cap, the entire sleep duration gets charged as if
+        // it were active use, and the child finds the machine already locked at 0 the moment
+        // they turn it back on.
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+
+        clock.Advance(TimeSpan.FromHours(3)); // e.g. a laptop closed overnight
+        var decision = tracker.Evaluate();
+
+        Assert.False(decision.ShouldBeLocked);
+        // Exactly the cap (30s) charged, not the full 3 hours asleep.
+        Assert.Equal(TimeSpan.FromMinutes(120) - TimeSpan.FromSeconds(30), decision.RemainingBudget);
+    }
+
+    [Fact]
+    public void Evaluate_StillChargesNormally_ForAGenuinelyShortGapAroundASuspend()
+    {
+        // A little real use, then asleep for hours, then a little more real use — only the
+        // genuine active minutes should ever be charged.
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(5)); // a bit of real use before sleeping
+
+        clock.Advance(TimeSpan.FromHours(3)); // asleep the whole time
+        tracker.Evaluate(); // the tick that "sees" the big gap and clips it
+
+        var decision = TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(5)); // a bit more real use after waking
+
+        Assert.False(decision.ShouldBeLocked);
+        // 120 - 5 (before) - 30s (clipped sleep charge) - 5 (after).
+        Assert.Equal(TimeSpan.FromMinutes(110) - TimeSpan.FromSeconds(30), decision.RemainingBudget);
+    }
+
+    [Fact]
+    public void Evaluate_DoesNotFalselyFlagClockTamper_ForALargeGapWhereBothClocksMoveTogether()
+    {
+        // A single big jump where both the monotonic and wall clocks move together (unlike
+        // JumpWallClockOnly, used elsewhere to simulate an actual date/time change) is
+        // exactly what sleep looks like — must not be mistaken for tampering.
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+
+        clock.Advance(TimeSpan.FromHours(6));
+        var decision = tracker.Evaluate();
+
+        Assert.False(decision.ShouldBeLocked);
+        Assert.Equal(LockReason.None, decision.Reason);
     }
 }
