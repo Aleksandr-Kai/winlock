@@ -12,6 +12,16 @@ public sealed class UsageTracker
 {
     private static readonly TimeSpan ClockTamperTolerance = TimeSpan.FromSeconds(10);
 
+    // Environment.TickCount64 (what the monotonic clock is backed by) is NOT paused by sleep
+    // — only a full reboot resets it — so a long sleep, or the service itself being stopped
+    // and restarted later, would otherwise look identical to hours of continuous active use.
+    // EnforcementWorker calls Evaluate() roughly every 5 seconds while the machine is
+    // genuinely awake and the service is genuinely running, so a gap far larger than that
+    // between two consecutive calls can only mean it wasn't. 30s is generous relative to that
+    // real cadence (tolerates an occasional slow tick — GC, a busy CPU, whatever) while still
+    // being trivially short next to any real sleep or outage.
+    private static readonly TimeSpan MaxChargeablePerEvaluation = TimeSpan.FromSeconds(30);
+
     private readonly IMonotonicClock _clock;
     private ScheduleConfig _schedule;
     private readonly UsageState _state;
@@ -138,7 +148,10 @@ public sealed class UsageTracker
                 }
                 else if (!_state.ManuallyLocked)
                 {
-                    _state.RemainingBudget -= elapsedMonotonic;
+                    var chargeable = elapsedMonotonic > MaxChargeablePerEvaluation
+                        ? MaxChargeablePerEvaluation
+                        : elapsedMonotonic;
+                    _state.RemainingBudget -= chargeable;
                     if (_state.RemainingBudget < TimeSpan.Zero)
                         _state.RemainingBudget = TimeSpan.Zero;
                 }
