@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WinLock — родительский контроль для Windows без облака</title>
+<meta name="description" content="Бесплатный родительский контроль для Windows: расписание и дневной лимит экранного времени, управление с телефона по домашнему Wi-Fi. Без облачного аккаунта, без подписки, без интернета на ПК ребёнка.">
+<meta name="keywords" content="родительский контроль windows, ограничение экранного времени, детский компьютер блокировка, родительский контроль без облака, screen time windows, parental control windows">
+<link rel="canonical" href="https://aleksandr-kai.github.io/winlock/">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="WinLock — родительский контроль для Windows без облака">
+<meta property="og:description" content="Расписание и дневной лимит экрана для Windows. Управление с телефона по домашнему Wi-Fi — без облака, без аккаунта, без подписки.">
+<meta property="og:url" content="https://aleksandr-kai.github.io/winlock/">
+<meta property="og:locale" content="ru_RU">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="WinLock — родительский контроль для Windows без облака">
+<meta name="twitter:description" content="Расписание и дневной лимит экрана для Windows. Управление с телефона по домашнему Wi-Fi — без облака, без аккаунта, без подписки.">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f1626'/%3E%3Cpath d='M50 27a15 15 0 0 0-15 15v6h-3a5 5 0 0 0-5 5v22a5 5 0 0 0 5 5h36a5 5 0 0 0 5-5V53a5 5 0 0 0-5-5h-3v-6a15 15 0 0 0-15-15zm0 8a7 7 0 0 1 7 7v6H43v-6a7 7 0 0 1 7-7zm0 24a5 5 0 0 1 2.6 9.3l1 6.7h-7.2l1-6.7A5 5 0 0 1 50 59z' fill='%23f5b942'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700;800&family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "WinLock",
+  "applicationCategory": "SecurityApplication",
+  "operatingSystem": "Windows 10, Windows 11, Android",
+  "description": "Родительский контроль экранного времени для Windows: расписание и дневной лимит, управление с телефона по домашней Wi-Fi сети, без облака и подписок.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "downloadUrl": "https://github.com/Aleksandr-Kai/winlock/releases/latest",
+  "softwareHelp": "https://github.com/Aleksandr-Kai/winlock",
+  "isAccessibleForFree": true
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Нужен ли интернет на компьютере ребёнка?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Нет. Расписание и дневной лимит считает локальная служба Windows — интернет ей не нужен. Для управления с телефона в реальном времени телефон и компьютер должны быть в одной домашней Wi-Fi сети; для разовой оффлайн-разблокировки по QR-коду телефон родителя может быть где угодно." }
+    },
+    {
+      "@type": "Question",
+      "name": "Куда передаются данные о ребёнке?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Никуда за пределы вашей домашней сети. У WinLock нет облачного сервера и нет аналитики — телефон подключается к компьютеру напрямую по Wi-Fi." }
+    },
+    {
+      "@type": "Question",
+      "name": "Это бесплатно?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Да, полностью бесплатно, без подписки и рекламы. Исходный код открыт на GitHub." }
+    },
+    {
+      "@type": "Question",
+      "name": "На каких устройствах это работает?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Windows 10 или 11 (64-бит) на компьютере ребёнка и Android на телефоне родителя." }
+    },
+    {
+      "@type": "Question",
+      "name": "Можно ли обойти блокировку?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Как и у любой программы на устройстве, которым управляет ребёнок, полностью исключить обход нельзя. WinLock защищён от типичных способов (запуск в безопасном режиме, завершение процесса блокировки) и продолжает дорабатываться по мере обнаружения новых." }
+    }
+  ]
+}
+</script>
+
+<style>
+:root{
+  --navy-950:#0a0e1a;
+  --navy-900:#0f1626;
+  --navy-800:#161f36;
+  --navy-700:#20304f;
+  --navy-line:#2a3a5c;
+  --ink:#e8ecf6;
+  --ink-dim:#aab4cc;
+  --paper:#faf8f3;
+  --paper-line:#e6e0d3;
+  --text:#221f18;
+  --text-dim:#6b6455;
+  --amber:#f5b942;
+  --amber-ink:#3a2405;
+  --good:#5fd3a0;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--navy-950);
+  color:var(--ink);
+  font-family:'Golos Text',system-ui,-apple-system,'Segoe UI',sans-serif;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:'Unbounded',system-ui,sans-serif;line-height:1.2;text-wrap:balance;margin:0}
+a{color:inherit}
+img,svg{max-width:100%;display:block}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+code,.mono{font-family:'JetBrains Mono',monospace}
+
+/* ---------- nav ---------- */
+.nav{
+  position:sticky;top:0;z-index:20;
+  background:rgba(10,14,26,.85);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--navy-line);
+}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+.brand{display:flex;align-items:center;gap:10px;font-family:'Unbounded';font-weight:700;font-size:1.05rem;text-decoration:none}
+.brand svg{width:28px;height:28px}
+.nav-links{display:flex;gap:28px;align-items:center}
+.nav-links a{font-size:.92rem;color:var(--ink-dim);text-decoration:none}
+.nav-links a:hover{color:var(--ink)}
+.nav .cta{
+  background:var(--amber);color:var(--amber-ink);font-weight:700;font-size:.88rem;
+  padding:9px 16px;border-radius:999px;text-decoration:none;white-space:nowrap;
+}
+@media (max-width:720px){.nav-links a:not(.cta){display:none}}
+
+/* ---------- hero ---------- */
+.hero{
+  padding:76px 0 88px;
+  background:
+    radial-gradient(1100px 480px at 82% -10%, rgba(245,185,66,.14), transparent 60%),
+    radial-gradient(800px 400px at 10% 0%, rgba(95,211,160,.08), transparent 55%);
+  position:relative;overflow:hidden;
+}
+.hero .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:56px;align-items:center}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr}}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:.8rem;letter-spacing:.03em;color:var(--amber);
+  background:rgba(245,185,66,.1);border:1px solid rgba(245,185,66,.28);
+  padding:6px 14px;border-radius:999px;margin-bottom:22px;font-weight:600;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--good)}
+h1{font-size:clamp(2.1rem,4.4vw,3.4rem);font-weight:800;letter-spacing:-.01em}
+h1 .accent{color:var(--amber)}
+.lede{font-size:1.15rem;color:var(--ink-dim);max-width:52ch;margin:22px 0 32px}
+.cta-row{display:flex;gap:14px;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 24px;border-radius:12px;font-weight:700;font-size:.98rem;
+  text-decoration:none;border:1px solid transparent;
+}
+.btn-primary{background:var(--amber);color:var(--amber-ink)}
+.btn-primary:hover{filter:brightness(1.06)}
+.btn-ghost{background:transparent;color:var(--ink);border-color:var(--navy-line)}
+.btn-ghost:hover{border-color:var(--ink-dim)}
+.trust-row{display:flex;gap:22px;flex-wrap:wrap;margin-top:30px;font-size:.86rem;color:var(--ink-dim)}
+.trust-row span{display:flex;align-items:center;gap:7px}
+.trust-row svg{width:16px;height:16px;flex:none;color:var(--good)}
+
+/* hero illustration */
+.illo{
+  background:linear-gradient(180deg,var(--navy-800),var(--navy-900));
+  border:1px solid var(--navy-line);border-radius:24px;padding:28px;
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.55);
+}
+.illo svg{width:100%;height:auto}
+
+/* ---------- sections (dark) ---------- */
+.section{padding:84px 0}
+.section h2{font-size:clamp(1.6rem,2.8vw,2.2rem);margin-bottom:14px}
+.section .kicker{color:var(--amber);font-weight:700;font-size:.85rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;display:block}
+.section .subhead{color:var(--ink-dim);max-width:60ch;margin-bottom:48px;font-size:1.05rem}
+
+/* how it works */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+@media (max-width:800px){.steps{grid-template-columns:1fr}}
+.step{
+  background:var(--navy-900);border:1px solid var(--navy-line);border-radius:18px;padding:28px;
+}
+.step .num{
+  font-family:'JetBrains Mono';font-weight:500;color:var(--amber);
+  font-size:.85rem;border:1px solid rgba(245,185,66,.35);border-radius:8px;
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;margin-bottom:18px;
+}
+.step h3{font-size:1.1rem;margin-bottom:8px}
+.step p{color:var(--ink-dim);font-size:.95rem;margin:0}
+
+/* feature grid */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--navy-line);border:1px solid var(--navy-line);border-radius:18px;overflow:hidden}
+@media (max-width:900px){.features{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:600px){.features{grid-template-columns:1fr}}
+.feature{background:var(--navy-900);padding:26px 24px}
+.feature svg{width:22px;height:22px;color:var(--amber);margin-bottom:14px}
+.feature h3{font-size:1rem;margin-bottom:6px}
+.feature p{color:var(--ink-dim);font-size:.9rem;margin:0}
+
+/* ---------- paper section ---------- */
+.paper{background:var(--paper);color:var(--text)}
+.paper .kicker{color:#b5791c}
+.paper .subhead{color:var(--text-dim)}
+.paper h3{color:var(--text)}
+
+/* comparison table */
+.compare{width:100%;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 0 var(--paper-line);border:1px solid var(--paper-line)}
+.compare th,.compare td{padding:16px 18px;text-align:left;border-bottom:1px solid var(--paper-line);font-size:.95rem}
+.compare th{font-family:'Unbounded';font-size:.82rem;letter-spacing:.02em;background:#f3efe4;color:var(--text-dim);text-transform:uppercase}
+.compare td:not(:first-child){text-align:center}
+.compare tr:last-child td{border-bottom:none}
+.compare .yes{color:#1c8a5f;font-weight:700}
+.compare .no{color:#b0473f;font-weight:700}
+.compare .lead{font-weight:600}
+.compare-wrap{overflow-x:auto;border-radius:16px}
+
+/* faq */
+.faq{max-width:760px}
+.faq details{
+  border-bottom:1px solid var(--paper-line);padding:20px 0;
+}
+.faq summary{
+  cursor:pointer;font-weight:600;font-size:1.02rem;list-style:none;
+  display:flex;justify-content:space-between;align-items:center;gap:16px;
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:'+';font-family:'Unbounded';font-size:1.3rem;color:#b5791c;flex:none}
+.faq details[open] summary::after{content:'–'}
+.faq p{color:var(--text-dim);margin:14px 0 0;max-width:65ch}
+
+/* download */
+.dl{background:var(--navy-950)}
+.dl-card{
+  background:linear-gradient(160deg,var(--navy-800),var(--navy-900));
+  border:1px solid var(--navy-line);border-radius:24px;padding:44px;
+  display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;
+}
+@media (max-width:760px){.dl-card{grid-template-columns:1fr;text-align:left}}
+.dl-card h2{font-size:1.6rem;margin-bottom:10px}
+.dl-card p{color:var(--ink-dim);margin:0;max-width:48ch}
+.reqs{margin-top:18px;display:flex;gap:18px;flex-wrap:wrap;font-size:.85rem;color:var(--ink-dim)}
+.reqs span{display:flex;align-items:center;gap:6px}
+.dl-buttons{display:flex;flex-direction:column;gap:12px;min-width:230px}
+
+/* footer */
+footer{border-top:1px solid var(--navy-line);padding:40px 0;color:var(--ink-dim);font-size:.86rem}
+footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+footer a{text-decoration:none;color:var(--ink-dim)}
+footer a:hover{color:var(--ink)}
+footer .links{display:flex;gap:22px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="22" fill="#161f36"/><path d="M50 27a15 15 0 0 0-15 15v6h-3a5 5 0 0 0-5 5v22a5 5 0 0 0 5 5h36a5 5 0 0 0 5-5V53a5 5 0 0 0-5-5h-3v-6a15 15 0 0 0-15-15zm0 8a7 7 0 0 1 7 7v6H43v-6a7 7 0 0 1 7-7zm0 24a5 5 0 0 1 2.6 9.3l1 6.7h-7.2l1-6.7A5 5 0 0 1 50 59z" fill="#f5b942"/></svg>
+      WinLock
+    </a>
+    <div class="nav-links">
+      <a href="#how">Как это работает</a>
+      <a href="#features">Возможности</a>
+      <a href="#faq">Вопросы</a>
+      <a href="https://github.com/Aleksandr-Kai/winlock">GitHub</a>
+      <a class="cta" href="#download">Скачать</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow"><span class="dot"></span>Бесплатно · без облака · с открытым кодом</span>
+      <h1>Родительский контроль для Windows, который <span class="accent">не отправляет данные ребёнка в облако</span></h1>
+      <p class="lede">
+        WinLock ограничивает время за компьютером по расписанию и дневному лимиту — а телефон
+        родителя управляет им напрямую по домашнему Wi-Fi. Без облачного аккаунта, без подписки,
+        без серверов посередине.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/Aleksandr-Kai/winlock/releases/latest/download/WinLock-Installer.zip">Скачать для Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/Aleksandr-Kai/winlock/releases/latest/download/WinLock-Parent.apk">Android-приложение (.apk)</a>
+      </div>
+      <div class="trust-row">
+        <span><svg viewBox="0 0 20 20" fill="currentColor"><path d="M7.6 13.4 4.2 10l-1.4 1.4 4.8 4.8L17.2 6.6l-1.4-1.4z"/></svg>Данные не покидают домашнюю сеть</span>
+        <span><svg viewBox="0 0 20 20" fill="currentColor"><path d="M7.6 13.4 4.2 10l-1.4 1.4 4.8 4.8L17.2 6.6l-1.4-1.4z"/></svg>Работает без интернета на ПК</span>
+        <span><svg viewBox="0 0 20 20" fill="currentColor"><path d="M7.6 13.4 4.2 10l-1.4 1.4 4.8 4.8L17.2 6.6l-1.4-1.4z"/></svg>Исходный код открыт на GitHub</span>
+      </div>
+    </div>
+
+    <div class="illo" aria-hidden="true">
+      <svg viewBox="0 0 400 320">
+        <rect x="18" y="24" width="230" height="152" rx="10" fill="#0a0e1a" stroke="#2a3a5c"/>
+        <rect x="30" y="36" width="206" height="118" rx="4" fill="#111a2e"/>
+        <rect x="50" y="70" width="52" height="52" rx="8" fill="#161f36" stroke="#2a3a5c"/>
+        <path d="M66 88a10 10 0 0 1 20 0v6H66z" fill="none" stroke="#f5b942" stroke-width="3"/>
+        <rect x="62" y="94" width="28" height="20" rx="3" fill="#f5b942"/>
+        <rect x="94" y="24" width="10" height="152" fill="#0a0e1a"/>
+        <rect x="18" y="180" width="230" height="10" rx="4" fill="#161f36"/>
+
+        <rect x="270" y="52" width="112" height="216" rx="20" fill="#0a0e1a" stroke="#2a3a5c" stroke-width="2"/>
+        <rect x="280" y="72" width="92" height="150" rx="4" fill="#111a2e"/>
+        <circle cx="326" cy="245" r="9" fill="none" stroke="#2a3a5c" stroke-width="2"/>
+        <rect x="298" y="90" width="56" height="56" rx="6" fill="#fff"/>
+        <g fill="#0a0e1a">
+          <rect x="304" y="96" width="14" height="14"/><rect x="326" y="96" width="8" height="8"/><rect x="338" y="96" width="10" height="14"/>
+          <rect x="304" y="118" width="8" height="8"/><rect x="316" y="118" width="8" height="8"/><rect x="338" y="122" width="10" height="10"/>
+          <rect x="304" y="132" width="14" height="10"/><rect x="326" y="130" width="8" height="12"/>
+        </g>
+        <rect x="298" y="158" width="56" height="8" rx="4" fill="#2a3a5c"/>
+        <rect x="298" y="172" width="38" height="8" rx="4" fill="#2a3a5c"/>
+
+        <path d="M150 100 C200 60, 230 60, 292 118" fill="none" stroke="#f5b942" stroke-width="2" stroke-dasharray="2 8" stroke-linecap="round"/>
+        <circle cx="150" cy="100" r="4" fill="#5fd3a0"/>
+        <circle cx="292" cy="118" r="4" fill="#5fd3a0"/>
+
+        <rect x="20" y="230" width="188" height="30" rx="15" fill="#161f36" stroke="#2a3a5c"/>
+        <circle cx="38" cy="245" r="5" fill="#5fd3a0"/>
+        <text x="52" y="250" font-family="JetBrains Mono, monospace" font-size="12" fill="#aab4cc">192.168.1.42 · Wi-Fi</text>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<section class="section" id="why">
+  <div class="wrap">
+    <span class="kicker">Зачем ещё один родительский контроль</span>
+    <h2>Большинству программ родительского контроля нужен облачный аккаунт</h2>
+    <p class="subhead">
+      Даже если вам нужно всего лишь ограничить экранное время дома, многие приложения требуют
+      завести учётную запись и постоянно отправляют данные о ребёнке на сторонние серверы.
+      WinLock устроен иначе.
+    </p>
+    <div class="steps" style="grid-template-columns:1fr 1fr">
+      <div class="step">
+        <h3>Служба на компьютере ребёнка</h3>
+        <p>Windows-служба сама считает время и проверяет расписание — локально, без обращений
+          куда-либо. Блокировка работает, даже если у ПК вообще нет сети.</p>
+      </div>
+      <div class="step">
+        <h3>Телефон подключается напрямую</h3>
+        <p>Приложение на Android находит ПК в домашней Wi-Fi сети и управляет им напрямую —
+          без облачного посредника, без аккаунта, без ежемесячной платы.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <div class="wrap">
+    <span class="kicker">Как это работает</span>
+    <h2>Три шага от установки до первой блокировки</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">01</div>
+        <h3>Установите на ПК ребёнка</h3>
+        <p>Один exe-файл, графический установщик с запросом прав администратора — без
+          консоли и PowerShell.</p>
+      </div>
+      <div class="step">
+        <div class="num">02</div>
+        <h3>Отсканируйте QR в приложении</h3>
+        <p>Телефон и компьютер привязываются напрямую по Wi-Fi. Канал защищён пиннингом
+          сертификата и challenge-response авторизацией.</p>
+      </div>
+      <div class="step">
+        <div class="num">03</div>
+        <h3>Задайте расписание и лимит</h3>
+        <p>Компьютер блокируется сам — по расписанию и когда заканчивается дневной лимит.
+          С телефона можно продлить время или заблокировать вручную в любой момент.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="wrap">
+    <span class="kicker">Возможности</span>
+    <h2>Всё, что нужно для контроля экранного времени</h2>
+    <p class="subhead">Ничего лишнего сверху: без слежки за перепиской, без истории браузера,
+      без постоянной записи экрана.</p>
+    <div class="features">
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v4M13 2v4"/></svg>
+        <h3>Расписание + дневной лимит</h3>
+        <p>Разрешённые дни и часы плюс лимит минут в день — независимо друг от друга.</p>
+      </div>
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2 3 6v5c0 4 3 6.5 7 7 4-.5 7-3 7-7V6z"/></svg>
+        <h3>Работает без сети</h3>
+        <p>Контроль — локальная служба Windows, а не облачный сервис. Не зависит от того,
+          подключён ли телефон.</p>
+      </div>
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="6" height="6"/><rect x="11" y="3" width="6" height="6"/><rect x="3" y="11" width="6" height="6"/><path d="M13 12h4M15 11v6"/></svg>
+        <h3>Оффлайн-разблокировка по QR</h3>
+        <p>Если у ПК нет сети — QR-код на экране блокировки. Родитель сканирует и называет
+          ребёнку короткий код.</p>
+      </div>
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="1" width="12" height="18" rx="2"/><path d="M9 16h2"/></svg>
+        <h3>Управление с телефона</h3>
+        <p>Продлить время, задать точный лимит, заблокировать/разблокировать вручную,
+          запросить разовый снимок экрана.</p>
+      </div>
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="6" r="3"/><circle cx="14" cy="14" r="3"/><path d="M8.5 7.5 11.5 12.5"/></svg>
+        <h3>Несколько ПК и родителей</h3>
+        <p>Один телефон следит за несколькими компьютерами; один ПК может быть привязан к
+          нескольким родителям.</p>
+      </div>
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg>
+        <h3>Предупреждение заранее</h3>
+        <p>Ненавязчивый тост поверх текущей активности за 15 минут до блокировки, затем
+          каждые 5 минут.</p>
+      </div>
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2 3 5v5c0 4.5 3 7 7 8 4-1 7-3.5 7-8V5z"/><path d="M7.5 10 9 11.5 12.5 8"/></svg>
+        <h3>Шифрование и пиннинг</h3>
+        <p>Состояние на диске зашифровано (DPAPI); канал защищён пиннингом сертификата
+          и HMAC-авторизацией телефона.</p>
+      </div>
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 10a6 6 0 1 1 2 4.5"/><path d="M2 15v-3h3"/></svg>
+        <h3>Устойчивость к сбоям</h3>
+        <p>Повреждённое состояние не приводит к падению или произвольной блокировке —
+          и не теряется молча: родитель получает предупреждение.</p>
+      </div>
+      <div class="feature">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M7 8h6M7 11h4"/></svg>
+        <h3>Автопоиск в сети</h3>
+        <p>ПК анонсирует себя через mDNS — приложение само подхватывает новый IP после
+          смены адреса, без повторной привязки.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section paper" id="compare">
+  <div class="wrap">
+    <span class="kicker">Сравнение</span>
+    <h2>Чем это отличается от обычного родительского контроля</h2>
+    <div class="compare-wrap">
+      <table class="compare">
+        <thead>
+          <tr><th>Признак</th><th>WinLock</th><th>Типичный облачный аналог</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="lead">Нужен облачный аккаунт</td><td class="no">Нет</td><td>Обычно да</td></tr>
+          <tr><td class="lead">Подписка</td><td class="no">Нет, бесплатно</td><td>Обычно да</td></tr>
+          <tr><td class="lead">Куда уходят данные ребёнка</td><td class="yes">Никуда за пределы Wi-Fi</td><td>На серверы производителя</td></tr>
+          <tr><td class="lead">Работает без интернета на ПК</td><td class="yes">Да</td><td>Обычно нет</td></tr>
+          <tr><td class="lead">Исходный код можно посмотреть</td><td class="yes">Да, на GitHub</td><td>Нет</td></tr>
+          <tr><td class="lead">Постоянная запись экрана</td><td class="no">Нет — снимок только по запросу</td><td>Часто да</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section paper" id="faq">
+  <div class="wrap">
+    <span class="kicker">Вопросы</span>
+    <h2>Частые вопросы</h2>
+    <div class="faq">
+      <details open>
+        <summary>Нужен ли интернет на компьютере ребёнка?</summary>
+        <p>Нет. Расписание и дневной лимит считает локальная служба Windows — интернет ей не
+          нужен. Для управления с телефона в реальном времени оба устройства должны быть в
+          одной домашней Wi-Fi сети; для разовой оффлайн-разблокировки по QR-коду телефон
+          родителя может быть где угодно.</p>
+      </details>
+      <details>
+        <summary>Куда передаются данные о ребёнке?</summary>
+        <p>Никуда за пределы вашей домашней сети. У WinLock нет облачного сервера и нет
+          аналитики — телефон подключается к компьютеру напрямую по Wi-Fi.</p>
+      </details>
+      <details>
+        <summary>Это бесплатно?</summary>
+        <p>Да, полностью бесплатно, без подписки и рекламы. Исходный код открыт на GitHub —
+          можно посмотреть, как это устроено.</p>
+      </details>
+      <details>
+        <summary>На каких устройствах это работает?</summary>
+        <p>Windows 10 или 11 (64-бит) на компьютере ребёнка и Android на телефоне родителя.</p>
+      </details>
+      <details>
+        <summary>Можно ли обойти блокировку?</summary>
+        <p>Как и у любой программы на устройстве, которым управляет ребёнок, полностью
+          исключить обход нельзя. WinLock защищён от типичных способов (запуск в безопасном
+          режиме, завершение процесса блокировки) и продолжает дорабатываться по мере
+          обнаружения новых.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="section dl" id="download">
+  <div class="wrap">
+    <div class="dl-card">
+      <div>
+        <h2>Готовы попробовать?</h2>
+        <p>Установите на компьютер ребёнка, привяжите телефон по QR-коду — и настройте
+          расписание за пару минут.</p>
+        <div class="reqs">
+          <span class="mono">Windows 10/11 · 64-бит</span>
+          <span class="mono">Android 8.0+</span>
+          <span class="mono">.NET 8 Runtime</span>
+        </div>
+      </div>
+      <div class="dl-buttons">
+        <a class="btn btn-primary" href="https://github.com/Aleksandr-Kai/winlock/releases/latest/download/WinLock-Installer.zip">Скачать для Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/Aleksandr-Kai/winlock/releases/latest/download/WinLock-Parent.apk">Android .apk</a>
+        <a class="btn btn-ghost" href="https://github.com/Aleksandr-Kai/winlock">Исходный код</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 WinLock. Некоммерческий проект, публикуется как есть, без гарантий.</span>
+    <div class="links">
+      <a href="https://github.com/Aleksandr-Kai/winlock">GitHub</a>
+      <a href="https://github.com/Aleksandr-Kai/winlock/releases">Релизы</a>
+      <a href="https://github.com/Aleksandr-Kai/winlock/issues">Сообщить о проблеме</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
