@@ -26,8 +26,18 @@ public partial class App : Application
             return;
         }
 
+        // A lock window spawned by another lock window specifically to cover a virtual
+        // desktop the original one isn't on (see LockWindow.EnsureCurrentDesktopIsCovered) —
+        // it must not itself go hunting for uncovered desktops too, or every lock window
+        // ends up independently spawning more of them for the same gap.
+        if (e.Args.Length >= 1 && e.Args[0] == "--covering")
+        {
+            new LockWindow(monitorDesktopCoverage: false).Show();
+            return;
+        }
+
         // No recognized arguments: this is how the service launches the lock screen.
-        new LockWindow().Show();
+        new LockWindow(monitorDesktopCoverage: true).Show();
     }
 
     /// <summary>Invisible, one-shot mode: no window, no dispatcher loop needed beyond
