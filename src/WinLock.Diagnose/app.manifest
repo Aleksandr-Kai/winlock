@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="WinLock.Diagnose" />
+
+  <!-- Several checks need admin rights to see anything useful — %ProgramData%\WinLock is
+       locked down to SYSTEM/Administrators, and the Security/System event log checks are far
+       more complete when elevated. requireAdministrator makes Windows show the UAC prompt
+       automatically the moment this exe is launched, so nobody has to remember to right-click
+       "Run as administrator" (and a first run without it produces a visibly thinner report). -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 / 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>
