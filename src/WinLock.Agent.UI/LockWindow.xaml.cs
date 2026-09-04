@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using WinLock.Agent.UI.Interop;
 using WinLock.Core.Ipc;
 using WinLock.Core.Models;
 
@@ -14,15 +16,24 @@ public partial class LockWindow : Window
     private readonly AgentPipeClient _pipeClient = new();
     private readonly KeyboardHook _keyboardHook = new();
     private readonly CancellationTokenSource _cts = new();
+    private readonly bool _monitorDesktopCoverage;
+    private readonly List<Process> _desktopCoverageWindows = [];
 
     private long? _currentChallengeId;
     private bool _allowClose;
     private DispatcherTimer? _pairingWatchTimer;
     private bool _pairingWindowSeenInForeground;
+    private DispatcherTimer? _desktopCoverageTimer;
 
-    public LockWindow()
+    /// <summary>monitorDesktopCoverage: only the one lock window the service itself launches
+    /// should go hunting for virtual desktops without a lock window on them and spawn more —
+    /// see <see cref="EnsureCurrentDesktopIsCovered"/>. A window spawned specifically to cover
+    /// one of those desktops passes false, or every lock window would end up independently
+    /// spawning more copies for the very same gap.</summary>
+    public LockWindow(bool monitorDesktopCoverage = true)
     {
         InitializeComponent();
+        _monitorDesktopCoverage = monitorDesktopCoverage;
 
         Left = SystemParameters.VirtualScreenLeft;
         Top = SystemParameters.VirtualScreenTop;
@@ -41,7 +52,60 @@ public partial class LockWindow : Window
         _pipeClient.MessageReceived += OnMessageReceived;
         _pipeClient.Disconnected += OnDisconnected;
 
+        if (_monitorDesktopCoverage)
+        {
+            // Windows' virtual desktops ("Task View") are a real, previously-unnoticed
+            // bypass: a window created on one desktop simply isn't shown on another one a
+            // child switches to (via the taskbar button or a touchpad gesture — neither goes
+            // through the keyboard, so KeyboardHook can't see either), leaving a fresh desktop
+            // looking completely unlocked even though nothing about the schedule/budget
+            // actually changed. Poll for that and put a lock window on every desktop that
+            // needs one.
+            _desktopCoverageTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _desktopCoverageTimer.Tick += (_, _) => EnsureCurrentDesktopIsCovered();
+            _desktopCoverageTimer.Start();
+        }
+
         await ConnectAndRequestChallengeAsync();
+    }
+
+    /// <summary>Only ever runs on the one lock window the service launched directly — see the
+    /// constructor. Spawns a sibling lock window (itself passing monitorDesktopCoverage:
+    /// false) onto whichever virtual desktop is currently active whenever neither this window
+    /// nor any window already spawned for a previous gap is on it.</summary>
+    private void EnsureCurrentDesktopIsCovered()
+    {
+        const int maxCoverageWindows = 10; // sanity cap against any runaway spawn loop
+
+        if (VirtualDesktop.IsOnCurrentDesktop(new WindowInteropHelper(this).Handle) != false)
+            return; // covered by this window itself, or unknown (fail toward not spawning)
+
+        _desktopCoverageWindows.RemoveAll(p => p.HasExited);
+
+        foreach (var covering in _desktopCoverageWindows)
+        {
+            covering.Refresh();
+            var hwnd = covering.MainWindowHandle;
+            if (hwnd == 0)
+                return; // a spawn for some earlier gap is still starting up; give it a moment
+            if (VirtualDesktop.IsOnCurrentDesktop(hwnd) != false)
+                return; // covered by that one, or unknown
+        }
+
+        if (_desktopCoverageWindows.Count >= maxCoverageWindows)
+            return;
+
+        try
+        {
+            var exePath = Process.GetCurrentProcess().MainModule!.FileName!;
+            var covering = Process.Start(new ProcessStartInfo(exePath, "--covering") { UseShellExecute = false });
+            if (covering is not null)
+                _desktopCoverageWindows.Add(covering);
+        }
+        catch
+        {
+            // Best-effort — the next tick will just try again.
+        }
     }
 
     private async Task ConnectAndRequestChallengeAsync()
@@ -249,6 +313,7 @@ public partial class LockWindow : Window
 
         _cts.Cancel();
         _pairingWatchTimer?.Stop();
+        _desktopCoverageTimer?.Stop();
         _keyboardHook.Dispose();
         _pipeClient.Dispose();
         Application.Current.Shutdown();
