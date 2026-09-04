@@ -162,4 +162,15 @@ app.Map("/agent/ws", async (HttpContext context, ControllerHub hub) =>
 
 app.Lifetime.ApplicationStopping.Register(() => discoveryBeacon?.Dispose());
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (OperationCanceledException)
+{
+    // Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceLifetime.StopAsync can throw
+    // this from its own internals during an entirely ordinary service stop (observed: the
+    // installer stopping the service before overwriting its files for an update) -- left
+    // uncaught it crashes the process with an APPCRASH instead of exiting cleanly. The
+    // service is stopping either way; there's nothing to do here but not crash on the way out.
+}
