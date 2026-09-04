@@ -483,4 +483,56 @@ public class UsageTrackerTests
         Assert.False(decision.ShouldBeLocked);
         Assert.Equal(LockReason.None, decision.Reason);
     }
+
+    [Fact]
+    public void Evaluate_DoesNotFalselyFlagClockTamper_AfterAGenuineReboot()
+    {
+        // Real bug report: the PC is turned off overnight (not just asleep) and rebooted the
+        // next morning. Environment.TickCount64 resets on a real reboot -- unlike sleep, which
+        // leaves it running -- so elapsedMonotonic reads as ~0 while elapsedReal reflects the
+        // whole night. That mismatch used to be indistinguishable from someone winding the
+        // wall clock forward, so an entirely ordinary overnight shutdown falsely tripped the
+        // tamper flag and left the machine stuck locked until a parent intervened.
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+        clock.Advance(TimeSpan.FromMinutes(1)); // some real uptime before it's turned off, so
+        tracker.Evaluate();                     // the monotonic clock has somewhere to reset from
+
+        clock.Reboot(TimeSpan.FromHours(3)); // off overnight
+        var decision = tracker.Evaluate();
+
+        Assert.False(decision.ShouldBeLocked);
+        Assert.Equal(LockReason.None, decision.Reason);
+        Assert.False(tracker.State.ClockTamperSuspected);
+    }
+
+    [Fact]
+    public void Evaluate_DoesNotChargeBudget_ForTimeSpentPoweredOff()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(10)); // a bit of real use first
+
+        clock.Reboot(TimeSpan.FromHours(3)); // short enough not to cross into a new calendar day
+        var decision = tracker.Evaluate();
+
+        Assert.Equal(TimeSpan.FromMinutes(110), decision.RemainingBudget);
+    }
+
+    [Fact]
+    public void Evaluate_StillDetectsClockTamper_WhenTheClockJumpsWithoutARealReboot()
+    {
+        // Regression guard for the reboot-detection fix above: it must only suppress the
+        // tamper check for an actual reboot (monotonic clock reading lower than before), not
+        // for a genuine clock-tamper attempt, where the monotonic clock keeps climbing normally.
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 60));
+        tracker.Evaluate();
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        clock.JumpWallClockOnly(TimeSpan.FromDays(1));
+        var decision = tracker.Evaluate();
+
+        Assert.True(decision.ShouldBeLocked);
+        Assert.Equal(LockReason.ClockTamperSuspected, decision.Reason);
+    }
 }

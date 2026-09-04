@@ -123,16 +123,26 @@ public sealed class UsageTracker
         }
         else
         {
+            // Environment.TickCount64 can only ever climb within one boot session — it has
+            // nothing to do with the wall clock, so nothing short of an actual restart can
+            // make it read lower than the last time this ran. That makes it an unambiguous
+            // "the machine was genuinely off" signal, distinct from a child winding the wall
+            // clock forward (which leaves the monotonic clock moving normally).
+            var rebooted = nowMonotonicMs < _state.LastMonotonicMs;
             var elapsedMonotonic = TimeSpan.FromMilliseconds(Math.Max(0, nowMonotonicMs - _state.LastMonotonicMs));
             var elapsedReal = nowUtc - _state.LastRealUtc;
 
             // The wall clock should advance in lockstep with the monotonic clock between two
-            // evaluations. A mismatch beyond tolerance means the system date/time was changed.
-            // Sticky by design: once set, this only clears via ExtendTime (an authenticated
-            // command from the phone). Otherwise a child could wind the clock forward, wait
-            // out one quiet poll cycle for the flag to self-clear, and ride the resulting
-            // "new day" rollover to an unlocked machine with a freshly reset budget.
-            if ((elapsedReal - elapsedMonotonic).Duration() > ClockTamperTolerance)
+            // evaluations. A mismatch beyond tolerance means the system date/time was changed
+            // -- except right after a genuine reboot, where elapsedMonotonic is clamped to
+            // (near) zero while elapsedReal reflects however long the machine was actually
+            // off; skip the check there, or every ordinary overnight shutdown would falsely
+            // trip it. Sticky by design otherwise: once set, this only clears via ExtendTime
+            // (an authenticated command from the phone). Otherwise a child could wind the
+            // clock forward, wait out one quiet poll cycle for the flag to self-clear, and
+            // ride the resulting "new day" rollover to an unlocked machine with a freshly
+            // reset budget.
+            if (!rebooted && (elapsedReal - elapsedMonotonic).Duration() > ClockTamperTolerance)
                 _state.ClockTamperSuspected = true;
 
             if (!_state.ClockTamperSuspected)
