@@ -66,6 +66,7 @@ static class Diagnostics
         RunCheck("Данные (%ProgramData%\\WinLock)", CheckDataDirectory);
         RunCheck("Регистрация запуска в безопасном режиме", CheckSafeModeRegistration);
         RunCheck("Журнал событий Windows (Приложение, последние 3 дня, записи похожие на сбой)", CheckEventLog);
+        RunCheck("Журнал событий Windows (Система, последние 3 дня, входы/выходы и перезагрузки)", CheckSessionEvents);
 
         var outPath = Path.Combine(AppContext.BaseDirectory, $"WinLock-Diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
         File.WriteAllText(outPath, report.ToString(), Encoding.UTF8);
@@ -258,6 +259,50 @@ static class Diagnostics
 
                 found++;
                 w($"[{entry.TimeCreated:yyyy-MM-dd HH:mm:ss}] {provider} (уровень={entry.LevelDisplayName}, id={entry.Id})");
+                w(description ?? "(нет описания)");
+                w("---");
+            }
+        }
+
+        w($"Найдено релевантных записей: {found}");
+    }
+
+    private static void CheckSessionEvents(Action<string> w)
+    {
+        // System log, not Application: Winlogon (logon/logoff), User Profile Service (profile
+        // loaded/unloaded — logged unconditionally, unlike Security-log logon events, which
+        // need an audit policy most home PCs never turn on), who/why initiated a
+        // shutdown/restart (User32 event 1074), and Kernel-Power's "the system rebooted
+        // without a clean shutdown first" (41) plus sleep/wake (42/107/1). Together these
+        // show what was actually going on around a burst of lock-screen relaunches — logons,
+        // logoffs, sleep cycles, hard power loss — instead of having to guess from the
+        // watchdog's own log lines alone.
+        var query = new EventLogQuery(
+            "System", PathType.LogName,
+            "*[System[TimeCreated[timediff(@SystemTime) <= 259200000]]]");
+        using var reader = new EventLogReader(query);
+
+        var found = 0;
+        for (var entry = reader.ReadEvent(); entry != null && found < 200; entry = reader.ReadEvent())
+        {
+            using (entry)
+            {
+                var provider = entry.ProviderName ?? "";
+                var relevant =
+                    provider.Contains("Winlogon", StringComparison.OrdinalIgnoreCase) ||
+                    provider.Contains("User Profile Service", StringComparison.OrdinalIgnoreCase) ||
+                    (provider.Equals("User32", StringComparison.OrdinalIgnoreCase) && entry.Id == 1074) ||
+                    (provider.Contains("Kernel-Power", StringComparison.OrdinalIgnoreCase) && entry.Id is 41 or 42 or 107 or 1);
+
+                if (!relevant)
+                    continue;
+
+                string? description = null;
+                try { description = entry.FormatDescription(); }
+                catch { /* some providers' metadata isn't resolvable locally — skip the text, keep the rest */ }
+
+                found++;
+                w($"[{entry.TimeCreated:yyyy-MM-dd HH:mm:ss}] {provider} (id={entry.Id})");
                 w(description ?? "(нет описания)");
                 w("---");
             }
