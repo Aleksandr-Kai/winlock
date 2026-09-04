@@ -236,6 +236,12 @@ public partial class LockWindow : Window
         if (pairingProcess is null)
             return;
 
+        // The keyboard hook's allowlist would otherwise stop an admin from typing a password
+        // with ordinary punctuation into whatever the pairing tool needs next — the runas
+        // prompt just proved this launch is legitimate, so lift the restriction for as long as
+        // that specific window has the foreground (see ReclaimLockScreen for when it's put back).
+        _keyboardHook.TrustForegroundProcess((uint)pairingProcess.Id);
+
         // The lock screen is deliberately full-screen and Topmost so a child can't get
         // behind it — but that means it would also sit on top of, and swallow every click
         // meant for, the pairing window we just launched. The runas prompt above already
@@ -282,6 +288,7 @@ public partial class LockWindow : Window
     {
         _pairingWatchTimer?.Stop();
         _pairingWatchTimer = null;
+        _keyboardHook.TrustForegroundProcess(0);
 
         Topmost = true;
         WindowState = WindowState.Normal;
