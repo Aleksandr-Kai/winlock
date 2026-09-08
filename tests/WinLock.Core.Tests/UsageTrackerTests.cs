@@ -535,4 +535,95 @@ public class UsageTrackerTests
         Assert.True(decision.ShouldBeLocked);
         Assert.Equal(LockReason.ClockTamperSuspected, decision.Reason);
     }
+
+    [Fact]
+    public void Evaluate_RecordsActualUsage_InTodaysHistoryEntry()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(20));
+
+        var today = DateOnly.FromDateTime(StartUtc.ToLocalTime().DateTime);
+        var entry = Assert.Single(tracker.State.History);
+        Assert.Equal(today, entry.Date);
+        Assert.Equal(TimeSpan.FromMinutes(20), entry.UsedTime);
+    }
+
+    [Fact]
+    public void Evaluate_AccumulatesHistory_AcrossSeparateTicksOnTheSameDay()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(10));
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(5));
+
+        var entry = Assert.Single(tracker.State.History);
+        Assert.Equal(TimeSpan.FromMinutes(15), entry.UsedTime);
+    }
+
+    [Fact]
+    public void Evaluate_StartsANewHistoryEntry_OnNewCalendarDay_KeepingYesterdaysFinalTotal()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
+        tracker.Evaluate();
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(50));
+
+        clock.Advance(TimeSpan.FromHours(20)); // crosses into the next day (see the budget-reset test above)
+        tracker.Evaluate(); // the rollover tick itself neither charges nor records anything
+
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(15)); // some use on the new day
+
+        var firstDay = DateOnly.FromDateTime(StartUtc.ToLocalTime().DateTime);
+        var secondDay = firstDay.AddDays(1);
+        Assert.Equal(2, tracker.State.History.Count);
+        Assert.Equal(TimeSpan.FromMinutes(50), tracker.State.History.Single(r => r.Date == firstDay).UsedTime);
+        Assert.Equal(TimeSpan.FromMinutes(15), tracker.State.History.Single(r => r.Date == secondDay).UsedTime);
+    }
+
+    [Fact]
+    public void Evaluate_DoesNotRecordHistory_WhileManuallyLocked()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 60));
+        tracker.Evaluate();
+        tracker.SetManualLock();
+
+        clock.Advance(TimeSpan.FromMinutes(15));
+        tracker.Evaluate();
+
+        Assert.Empty(tracker.State.History);
+    }
+
+    [Fact]
+    public void Evaluate_DoesNotRecordHistory_WhileClockTamperSuspected()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 60));
+        tracker.Evaluate();
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        clock.JumpWallClockOnly(TimeSpan.FromDays(1));
+        tracker.Evaluate();
+
+        Assert.Empty(tracker.State.History);
+    }
+
+    [Fact]
+    public void History_IsCappedAtThirtyDays_KeepingTheMostRecentEntries()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 60));
+        tracker.Evaluate();
+        var firstDay = DateOnly.FromDateTime(StartUtc.ToLocalTime().DateTime);
+
+        for (var day = 0; day < 35; day++)
+        {
+            TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(5));
+            clock.Advance(TimeSpan.FromHours(24)); // exactly one calendar day later, same time-of-day
+            tracker.Evaluate();
+        }
+
+        Assert.Equal(30, tracker.State.History.Count);
+        Assert.DoesNotContain(tracker.State.History, r => r.Date == firstDay);
+        Assert.Contains(tracker.State.History, r => r.Date == firstDay.AddDays(34));
+    }
 }

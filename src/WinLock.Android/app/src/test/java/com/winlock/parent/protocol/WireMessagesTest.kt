@@ -44,6 +44,23 @@ class WireMessagesTest {
     }
 
     @Test
+    fun decodesUsageHistorySnapshot() {
+        // Hand-constructed to match System.Text.Json's known conventions (PascalCase, "$type"
+        // discriminator, TimeSpan as "hh:mm:ss") rather than captured from a live instance,
+        // unlike the tests above -- this message type is new and there's no packet capture of
+        // it yet.
+        val raw = """{"${'$'}type":"usageHistory","Days":[""" +
+            """{"Date":"2026-09-04","UsedTime":"01:23:00"},""" +
+            """{"Date":"2026-09-03","UsedTime":"00:45:10"}]}"""
+
+        val snapshot = WireJson.decodeFromString<ServerToControllerMessage>(raw) as UsageHistorySnapshot
+
+        assertEquals(2, snapshot.days.size)
+        assertEquals("2026-09-04", snapshot.days[0].date)
+        assertEquals(4980L, NetTimeSpan.parseToSeconds(snapshot.days[0].usedTime)) // 01:23:00 = 4980s
+    }
+
+    @Test
     fun encodesExtendTimeCommand_withExpectedDiscriminatorAndCasing() {
         val json = WireJson.encodeToString<ControllerToServerMessage>(ExtendTimeCommand("req1", 30))
 

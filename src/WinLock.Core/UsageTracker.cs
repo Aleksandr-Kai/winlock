@@ -22,6 +22,10 @@ public sealed class UsageTracker
     // being trivially short next to any real sleep or outage.
     private static readonly TimeSpan MaxChargeablePerEvaluation = TimeSpan.FromSeconds(30);
 
+    /// <summary>How many days of <see cref="UsageState.History"/> to keep — old entries are
+    /// dropped rather than kept forever.</summary>
+    private const int MaxHistoryDays = 30;
+
     private readonly IMonotonicClock _clock;
     private ScheduleConfig _schedule;
     private readonly UsageState _state;
@@ -164,6 +168,7 @@ public sealed class UsageTracker
                     _state.RemainingBudget -= chargeable;
                     if (_state.RemainingBudget < TimeSpan.Zero)
                         _state.RemainingBudget = TimeSpan.Zero;
+                    RecordUsage(today, chargeable);
                 }
                 // While manually locked, the budget simply doesn't move — nothing is being
                 // used, so nothing should be spent.
@@ -178,6 +183,22 @@ public sealed class UsageTracker
         var decision = Decide(nowUtc.ToLocalTime(), nowUtc);
         _state.IsLocked = decision.ShouldBeLocked;
         return decision;
+    }
+
+    /// <summary>Adds to today's history entry (creating it if this is the first charge of the
+    /// day), then trims anything older than <see cref="MaxHistoryDays"/>. Only ever called
+    /// with genuinely chargeable time — see the caller in <see cref="Evaluate"/> — so this
+    /// never needs to handle a zero-or-negative amount.</summary>
+    private void RecordUsage(DateOnly date, TimeSpan amount)
+    {
+        var index = _state.History.FindIndex(r => r.Date == date);
+        if (index >= 0)
+            _state.History[index] = _state.History[index] with { UsedTime = _state.History[index].UsedTime + amount };
+        else
+            _state.History.Add(new DailyUsageRecord(date, amount));
+
+        if (_state.History.Count > MaxHistoryDays)
+            _state.History = _state.History.OrderBy(r => r.Date).TakeLast(MaxHistoryDays).ToList();
     }
 
     private LockDecision Decide(DateTimeOffset localNow, DateTimeOffset nowUtc)

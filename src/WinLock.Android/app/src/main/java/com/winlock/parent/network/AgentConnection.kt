@@ -23,6 +23,7 @@ import com.winlock.parent.protocol.StateRecoveryWarning
 import com.winlock.parent.protocol.StatusUpdate
 import com.winlock.parent.protocol.UnlockNowCommand
 import com.winlock.parent.protocol.UpdateScheduleCommand
+import com.winlock.parent.protocol.UsageHistorySnapshot
 import com.winlock.parent.protocol.WireJson
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -50,6 +51,7 @@ class AgentConnection(private val device: PairedDevice) {
     var onStateRecoveryWarning: ((StateRecoveryWarning) -> Unit)? = null
     var onServiceStoppedWarning: ((ServiceStoppedWarning) -> Unit)? = null
     var onVersion: ((String) -> Unit)? = null
+    var onUsageHistory: ((UsageHistorySnapshot) -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
 
     private var client: OkHttpClient? = null
@@ -99,6 +101,7 @@ class AgentConnection(private val device: PairedDevice) {
                         is StateRecoveryWarning -> onStateRecoveryWarning?.invoke(message)
                         is ServiceStoppedWarning -> onServiceStoppedWarning?.invoke(message)
                         is AgentVersionInfo -> onVersion?.invoke(message.version)
+                        is UsageHistorySnapshot -> onUsageHistory?.invoke(message)
                         is CommandAck -> pending.remove(message.requestId)?.resume(message)
                         is ScreenshotResult -> pending.remove(message.requestId)?.resume(message)
                     }

@@ -67,6 +67,7 @@ fun DeviceDetailScreen(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSchedule: () -> Unit,
+    onOpenStatistics: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     var device by remember { mutableStateOf<PairedDevice?>(null) }
@@ -310,6 +311,11 @@ fun DeviceDetailScreen(
                 onClick = onOpenSchedule,
                 modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
             ) { Text("Расписание") }
+
+            Button(
+                onClick = onOpenStatistics,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) { Text("Статистика") }
 
             Button(
                 onClick = {

@@ -14,6 +14,7 @@ namespace WinLock.Core.Network;
 [JsonDerivedType(typeof(StateRecoveryWarning), "stateRecoveryWarning")]
 [JsonDerivedType(typeof(ServiceStoppedWarning), "serviceStoppedWarning")]
 [JsonDerivedType(typeof(AgentVersionInfo), "agentVersion")]
+[JsonDerivedType(typeof(UsageHistorySnapshot), "usageHistory")]
 public abstract record ServerToControllerMessage;
 
 /// <summary>Sent immediately on connect, before anything else is accepted.</summary>
@@ -66,3 +67,14 @@ public sealed record ServiceStoppedWarning(DateTimeOffset OccurredAtUtc, string 
 /// right after a controller authenticates — a parent has no other way to tell, short of
 /// walking up to the PC, whether it needs updating.</summary>
 public sealed record AgentVersionInfo(string Version) : ServerToControllerMessage;
+
+/// <summary>One calendar day's worth of actual usage, for <see cref="UsageHistorySnapshot"/>.
+/// Date is a plain "yyyy-MM-dd" string rather than the C#-only DateOnly type, so it's
+/// unambiguous to parse on the Android side without depending on how System.Text.Json
+/// happens to represent DateOnly.</summary>
+public sealed record UsageHistoryDay(string Date, TimeSpan UsedTime);
+
+/// <summary>The last several days' actual usage — purely informational, for a parent to look
+/// back at; never used to decide whether the machine should be locked. Sent once right after
+/// a controller authenticates, same as <see cref="ScheduleSnapshot"/>.</summary>
+public sealed record UsageHistorySnapshot(IReadOnlyList<UsageHistoryDay> Days) : ServerToControllerMessage;

@@ -38,4 +38,13 @@ internal object NetTimeSpan {
         val s = clamped % 60
         return "%02d:%02d:%02d".format(h, m, s)
     }
+
+    /** Friendlier than [formatHms] for a summary (e.g. a day's total in a usage history list)
+     * rather than a live countdown: "1 ч 23 мин", "45 мин", or "0 мин". */
+    fun formatHoursMinutes(totalSeconds: Long): String {
+        val clamped = totalSeconds.coerceAtLeast(0)
+        val h = clamped / 3600
+        val m = (clamped % 3600) / 60
+        return if (h > 0) "$h ч $m мин" else "$m мин"
+    }
 }

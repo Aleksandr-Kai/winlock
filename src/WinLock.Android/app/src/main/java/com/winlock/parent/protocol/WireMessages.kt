@@ -103,6 +103,24 @@ data class AgentVersionInfo(
     @SerialName("Version") val version: String,
 ) : ServerToControllerMessage()
 
+/** One calendar day's worth of actual usage. [date] is a plain "yyyy-MM-dd" string (the PC
+ * formats it explicitly rather than relying on how System.Text.Json happens to represent
+ * DateOnly), [usedTime] is a .NET TimeSpan string — same format as [StatusUpdate.remainingBudget],
+ * parse with [NetTimeSpan]. */
+@Serializable
+data class UsageHistoryDay(
+    @SerialName("Date") val date: String,
+    @SerialName("UsedTime") val usedTime: String,
+)
+
+/** The last several days' actual usage — purely informational, never used to decide whether
+ * the machine should be locked. Sent once right after authenticating, same as [ScheduleSnapshot]. */
+@Serializable
+@SerialName("usageHistory")
+data class UsageHistorySnapshot(
+    @SerialName("Days") val days: List<UsageHistoryDay>,
+) : ServerToControllerMessage()
+
 @Serializable
 sealed class ControllerToServerMessage
 

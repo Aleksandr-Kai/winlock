@@ -28,4 +28,19 @@ class NetTimeSpanTest {
     fun formatHms_clampsNegativeToZero() {
         assertEquals("00:00:00", NetTimeSpan.formatHms(-5))
     }
+
+    @Test
+    fun formatHoursMinutes_omitsHours_whenUnderAnHour() {
+        assertEquals("45 мин", NetTimeSpan.formatHoursMinutes(45 * 60))
+    }
+
+    @Test
+    fun formatHoursMinutes_includesHours_whenOverAnHour() {
+        assertEquals("1 ч 23 мин", NetTimeSpan.formatHoursMinutes(83 * 60))
+    }
+
+    @Test
+    fun formatHoursMinutes_zero() {
+        assertEquals("0 мин", NetTimeSpan.formatHoursMinutes(0))
+    }
 }
