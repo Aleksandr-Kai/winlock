@@ -3,47 +3,25 @@ using System.Runtime.InteropServices;
 namespace WinLock.Agent.UI.Interop;
 
 /// <summary>
-/// COM interop for the documented (not the fragile, undocumented pinning APIs) part of
-/// Windows' virtual desktop surface, stable since Windows 10 1607. Used to detect when a
-/// child has switched to a virtual desktop ("Task View") the lock screen doesn't happen to be
-/// on — a window created on one virtual desktop simply isn't shown on another unless it's
-/// explicitly "pinned", and the lock screen isn't — so a fresh desktop looks completely open.
+/// Detects when a child has switched to a Windows virtual desktop ("Task View") the lock
+/// screen doesn't happen to be on — a window created on one virtual desktop simply isn't
+/// shown on another unless it's explicitly "pinned", and the lock screen isn't, so a fresh
+/// desktop looks completely open.
+///
+/// Uses DWM's own "cloaked" flag on the window (DWMWA_CLOAKED via dwmapi.dll) rather than the
+/// COM IVirtualDesktopManager interface: DWM itself is what hides a window that's on a
+/// different virtual desktop, by cloaking it — so this is asking the actual source of truth
+/// directly, through one plain, stable P/Invoke, instead of a separate COM object that has
+/// its own chance to misbehave or simply not reflect reality here.
 /// </summary>
-[ComImport]
-[Guid("A5CD92FF-29BE-454C-8D04-D82879FB3F1B")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface IVirtualDesktopManager
-{
-    [return: MarshalAs(UnmanagedType.Bool)]
-    bool IsWindowOnCurrentVirtualDesktop(nint topLevelWindow);
-
-    Guid GetWindowDesktopId(nint topLevelWindow);
-
-    void MoveWindowToDesktop(nint topLevelWindow, ref Guid desktopId);
-}
-
-[ComImport]
-[Guid("AA509086-5CA9-4C25-8F95-589D3C07B48A")]
-internal class VirtualDesktopManagerCoClass;
-
-/// <summary>Best-effort wrapper: virtual desktops (or this specific interface) may not exist
-/// on every Windows build this runs on, so every call degrades to "unknown" rather than
-/// throwing — callers should treat "unknown" as "assume covered" to fail toward not spuriously
-/// spawning extra lock windows on a system where this simply isn't available.</summary>
 internal static class VirtualDesktop
 {
-    private static readonly Lazy<IVirtualDesktopManager?> Manager = new(() =>
-    {
-        try
-        {
-            return (IVirtualDesktopManager)new VirtualDesktopManagerCoClass();
-        }
-        catch
-        {
-            return null;
-        }
-    });
+    private const int DWMWA_CLOAKED = 14;
+    private const int S_OK = 0;
 
+    /// <summary>True if visible on the current desktop, false if cloaked (on another virtual
+    /// desktop, most likely), null if the check itself failed — callers should treat null as
+    /// "assume covered" so a failure here can't itself trigger spawning an extra lock window.</summary>
     public static bool? IsOnCurrentDesktop(nint hwnd)
     {
         if (hwnd == 0)
@@ -51,15 +29,15 @@ internal static class VirtualDesktop
 
         try
         {
-            return Manager.Value?.IsWindowOnCurrentVirtualDesktop(hwnd);
+            var hr = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, out var cloaked, sizeof(int));
+            return hr == S_OK ? cloaked == 0 : null;
         }
         catch
         {
-            // Most commonly COMException 0x8007000B ("bad format") when called against a
-            // window that isn't a real top-level desktop window yet (e.g. mid-construction) —
-            // treat as unknown, not as "not covered", so a transient glitch here can't itself
-            // trigger spawning an extra lock window.
             return null;
         }
     }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(nint hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
 }
