@@ -31,6 +31,12 @@ public sealed class UsageState
     /// <summary>True while the machine is currently locked out.</summary>
     public bool IsLocked { get; set; }
 
+    /// <summary>How much was actually used each of the last several calendar days — for a
+    /// parent to look back at (see <see cref="DailyUsageRecord"/>); capped in
+    /// <see cref="WinLock.Core.UsageTracker"/> to a bounded number of days so this can't grow
+    /// forever.</summary>
+    public List<DailyUsageRecord> History { get; set; } = [];
+
     /// <summary>An explicit "lock it now" from a parent — overrides schedule and budget
     /// entirely, in either direction: set, it locks even with time remaining and inside the
     /// allowed window; while set, the budget also stops ticking down, since nothing is

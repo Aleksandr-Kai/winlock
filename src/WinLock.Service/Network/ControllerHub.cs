@@ -77,6 +77,7 @@ public sealed class ControllerHub : IAgentStatusPublisher
             await SendAsync(state, BuildStatus(_runtime.Evaluate()), ct); // bring it up to date immediately
             await SendAsync(state, new AgentVersionInfo(AgentVersion.Current), ct);
             await SendAsync(state, new ScheduleSnapshot(_runtime.CurrentSchedule), ct);
+            await SendAsync(state, BuildUsageHistory(_runtime.UsageHistory), ct);
             foreach (var notice in _runtime.PendingNotices)
                 await SendAsync(state, new NoticeWarning(notice.Kind, notice.OccurredAtUtc, notice.Reason), ct);
 
@@ -195,6 +196,11 @@ public sealed class ControllerHub : IAgentStatusPublisher
 
     private StatusUpdate BuildStatus(LockDecision decision) =>
         new(_runtime.DeviceId, _runtime.DeviceDisplayName, decision.ShouldBeLocked, decision.Reason, decision.RemainingBudget);
+
+    // DateOnly itself never goes over the wire (see UsageHistoryDay) -- converted to a plain
+    // "yyyy-MM-dd" string right here, at the boundary, rather than anywhere upstream.
+    private static UsageHistorySnapshot BuildUsageHistory(IReadOnlyList<DailyUsageRecord> history) =>
+        new(history.Select(r => new UsageHistoryDay(r.Date.ToString("yyyy-MM-dd"), r.UsedTime)).ToList());
 
     // WebSocket instances allow at most one send and one receive in flight at a time; a
     // per-connection lock keeps a broadcast from colliding with that connection's own reply.

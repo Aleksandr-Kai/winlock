@@ -84,6 +84,13 @@ public sealed class AgentRuntime
         get { lock (_gate) return _schedule; }
     }
 
+    /// <summary>The last several days' actual usage — purely informational, for a parent to
+    /// look back at.</summary>
+    public IReadOnlyList<DailyUsageRecord> UsageHistory
+    {
+        get { lock (_gate) return _tracker.State.History.ToList(); }
+    }
+
     /// <summary>An explicit "lock it now" from a parent — always succeeds.</summary>
     public void LockNow()
     {

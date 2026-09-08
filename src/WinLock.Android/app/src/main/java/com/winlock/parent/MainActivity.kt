@@ -22,6 +22,7 @@ import com.winlock.parent.ui.DeviceDetailScreen
 import com.winlock.parent.ui.DeviceListScreen
 import com.winlock.parent.ui.DeviceScheduleScreen
 import com.winlock.parent.ui.DeviceSettingsScreen
+import com.winlock.parent.ui.DeviceStatisticsScreen
 import com.winlock.parent.ui.OfflineUnlockScreen
 import com.winlock.parent.ui.theme.WinLockTheme
 
@@ -70,6 +71,7 @@ class MainActivity : ComponentActivity() {
                                 onBack = { navController.popBackStack() },
                                 onOpenSettings = { navController.navigate("device/$deviceId/settings") },
                                 onOpenSchedule = { navController.navigate("device/$deviceId/schedule") },
+                                onOpenStatistics = { navController.navigate("device/$deviceId/statistics") },
                             )
                         }
                         composable(
@@ -90,6 +92,17 @@ class MainActivity : ComponentActivity() {
                         ) { backStackEntry ->
                             val deviceId = backStackEntry.arguments?.getString("deviceId") ?: return@composable
                             DeviceScheduleScreen(
+                                deviceId = deviceId,
+                                deviceStore = deviceStore,
+                                onBack = { navController.popBackStack() },
+                            )
+                        }
+                        composable(
+                            "device/{deviceId}/statistics",
+                            arguments = listOf(navArgument("deviceId") { type = NavType.StringType }),
+                        ) { backStackEntry ->
+                            val deviceId = backStackEntry.arguments?.getString("deviceId") ?: return@composable
+                            DeviceStatisticsScreen(
                                 deviceId = deviceId,
                                 deviceStore = deviceStore,
                                 onBack = { navController.popBackStack() },

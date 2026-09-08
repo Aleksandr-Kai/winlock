@@ -29,6 +29,23 @@ public class NetworkMessageSerializationTests
     }
 
     [Fact]
+    public void UsageHistorySnapshot_RoundTrips_ThroughPolymorphicJson()
+    {
+        // Kept separate from the flat loop above: List<T> doesn't override Equals, so a
+        // record's auto-generated equality treats two different (if equal-content) Days
+        // lists as unequal -- comparing the list itself, rather than the wrapping message,
+        // is what actually exercises xUnit's element-wise sequence comparison.
+        ServerToControllerMessage message = new UsageHistorySnapshot(
+            [new UsageHistoryDay("2026-08-24", TimeSpan.FromMinutes(42))]);
+
+        var json = JsonSerializer.Serialize(message);
+        var roundTripped = Assert.IsType<UsageHistorySnapshot>(
+            JsonSerializer.Deserialize<ServerToControllerMessage>(json));
+
+        Assert.Equal(((UsageHistorySnapshot)message).Days, roundTripped.Days);
+    }
+
+    [Fact]
     public void ControllerToServerMessages_RoundTrip_ThroughPolymorphicJson()
     {
         var schedule = new ScheduleConfig
