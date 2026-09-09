@@ -165,10 +165,24 @@ public sealed class UsageTracker
                     var chargeable = elapsedMonotonic > MaxChargeablePerEvaluation
                         ? MaxChargeablePerEvaluation
                         : elapsedMonotonic;
-                    _state.RemainingBudget -= chargeable;
+
+                    // EnforcementWorker keeps ticking every ~5s regardless of whether the
+                    // machine is currently locked -- BudgetExhausted is just a Decide() result,
+                    // not something that pauses this loop. Once RemainingBudget has already
+                    // hit zero, `chargeable` would otherwise still get recorded as if it were
+                    // real usage, even though nothing was actually spent (the budget itself
+                    // stays clamped at zero) -- for a session left open at the lock screen for
+                    // hours after running out, History would silently grow to reflect that
+                    // whole span instead of the ~daily limit actually used. Record only what's
+                    // genuinely deducted.
+                    var actuallyDeducted = chargeable < _state.RemainingBudget ? chargeable : _state.RemainingBudget;
+                    if (actuallyDeducted < TimeSpan.Zero)
+                        actuallyDeducted = TimeSpan.Zero;
+
+                    _state.RemainingBudget -= actuallyDeducted;
                     if (_state.RemainingBudget < TimeSpan.Zero)
                         _state.RemainingBudget = TimeSpan.Zero;
-                    RecordUsage(today, chargeable);
+                    RecordUsage(today, actuallyDeducted);
                 }
                 // While manually locked, the budget simply doesn't move — nothing is being
                 // used, so nothing should be spent.
@@ -191,6 +205,13 @@ public sealed class UsageTracker
     /// never needs to handle a zero-or-negative amount.</summary>
     private void RecordUsage(DateOnly date, TimeSpan amount)
     {
+        // The caller now only ever passes what was genuinely deducted from RemainingBudget
+        // (see Evaluate), which is exactly zero once the budget's already exhausted for the
+        // day -- skip those rather than create a pointless zero-length entry for a day that
+        // otherwise saw no use at all.
+        if (amount <= TimeSpan.Zero)
+            return;
+
         var index = _state.History.FindIndex(r => r.Date == date);
         if (index >= 0)
             _state.History[index] = _state.History[index] with { UsedTime = _state.History[index].UsedTime + amount };

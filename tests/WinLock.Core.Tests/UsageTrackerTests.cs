@@ -551,6 +551,25 @@ public class UsageTrackerTests
     }
 
     [Fact]
+    public void Evaluate_DoesNotInflateHistory_AfterBudgetIsAlreadyExhausted()
+    {
+        // Regression test: EnforcementWorker keeps ticking every ~5s regardless of whether
+        // the machine is currently locked -- BudgetExhausted is just a Decide() result, not
+        // something that pauses the poll loop. A session left sitting at the lock screen for
+        // a long time after running out of budget must not make History grow past the actual
+        // daily limit, even though Evaluate() keeps being called the whole time.
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 30));
+        tracker.Evaluate();
+
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(30)); // burns the whole daily budget
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(20)); // sits locked at the screen well past that
+
+        var entry = Assert.Single(tracker.State.History);
+        Assert.Equal(TimeSpan.FromMinutes(30), entry.UsedTime);
+        Assert.Equal(TimeSpan.Zero, tracker.State.RemainingBudget);
+    }
+
+    [Fact]
     public void Evaluate_AccumulatesHistory_AcrossSeparateTicksOnTheSameDay()
     {
         var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 120));
