@@ -38,6 +38,13 @@ public sealed class EnforcementWorker : BackgroundService
         _statusPublisher = statusPublisher;
         _timeWarningNotifier = timeWarningNotifier;
         _logger = logger;
+
+        // Logged (rather than just tracked in UsageHistorySnapshot) so it shows up in the
+        // Windows Event Log a diagnostic report already captures -- a clear "here's when and
+        // how much was granted" trail is exactly what's missing when the phone-side numbers
+        // alone don't add up and there's no way to see state.json's actual contents directly.
+        _runtime.DailyBudgetGranted += (date, budget) =>
+            _logger.LogInformation("New daily budget granted: {Minutes} minutes for {Date:yyyy-MM-dd}.", (int)budget.TotalMinutes, date);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
