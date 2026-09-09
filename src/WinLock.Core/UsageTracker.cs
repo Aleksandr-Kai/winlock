@@ -30,6 +30,15 @@ public sealed class UsageTracker
     private ScheduleConfig _schedule;
     private readonly UsageState _state;
 
+    /// <summary>Fired exactly when a new daily budget is granted — a fresh install's first
+    /// Evaluate(), an ordinary midnight rollover, or a parent saving a new schedule (see
+    /// <see cref="UpdateSchedule"/>) — with the date it's for and how many minutes were
+    /// granted. Purely for logging/diagnostics on the host side; nothing in the enforcement
+    /// logic itself depends on this firing. Deliberately not raised by <see cref="ExtendTime"/>
+    /// or <see cref="SetRemainingBudget"/> — those are an ad-hoc top-up, not a new limit
+    /// period starting.</summary>
+    public event Action<DateOnly, TimeSpan>? DailyBudgetGranted;
+
     public UsageTracker(IMonotonicClock clock, ScheduleConfig schedule, UsageState state)
     {
         _clock = clock;
@@ -48,8 +57,7 @@ public sealed class UsageTracker
     public void UpdateSchedule(ScheduleConfig schedule)
     {
         _schedule = schedule;
-        _state.BudgetDate = DateOnly.FromDateTime(_clock.UtcNow.ToLocalTime().DateTime);
-        _state.RemainingBudget = TimeSpan.FromMinutes(schedule.DailyLimitMinutes);
+        GrantDailyBudget(DateOnly.FromDateTime(_clock.UtcNow.ToLocalTime().DateTime));
         _state.ScheduleOverrideUntilUtc = null;
         _state.ClockTamperSuspected = false;
     }
@@ -122,8 +130,7 @@ public sealed class UsageTracker
 
         if (isFirstRun)
         {
-            _state.BudgetDate = DateOnly.FromDateTime(nowUtc.ToLocalTime().DateTime);
-            _state.RemainingBudget = TimeSpan.FromMinutes(_schedule.DailyLimitMinutes);
+            GrantDailyBudget(DateOnly.FromDateTime(nowUtc.ToLocalTime().DateTime));
         }
         else
         {
@@ -157,8 +164,7 @@ public sealed class UsageTracker
                     // The calendar still rolls over on schedule even while manually locked —
                     // a lock spanning midnight shouldn't hand back a stale, days-old budget
                     // once lifted — but that's the only exception; see the pause below.
-                    _state.BudgetDate = today;
-                    _state.RemainingBudget = TimeSpan.FromMinutes(_schedule.DailyLimitMinutes);
+                    GrantDailyBudget(today);
                 }
                 else if (!_state.ManuallyLocked)
                 {
@@ -197,6 +203,18 @@ public sealed class UsageTracker
         var decision = Decide(nowUtc.ToLocalTime(), nowUtc);
         _state.IsLocked = decision.ShouldBeLocked;
         return decision;
+    }
+
+    /// <summary>Resets the budget to the current schedule's daily limit for the given date
+    /// and announces it via <see cref="DailyBudgetGranted"/> — the one place all three
+    /// "a new limit period starts now" call sites (first run, midnight rollover, an explicit
+    /// schedule save) actually apply the change, so they can't drift out of sync with each
+    /// other or forget to raise the event.</summary>
+    private void GrantDailyBudget(DateOnly date)
+    {
+        _state.BudgetDate = date;
+        _state.RemainingBudget = TimeSpan.FromMinutes(_schedule.DailyLimitMinutes);
+        DailyBudgetGranted?.Invoke(date, _state.RemainingBudget);
     }
 
     /// <summary>Adds to today's history entry (creating it if this is the first charge of the

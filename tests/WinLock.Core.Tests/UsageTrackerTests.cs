@@ -645,4 +645,70 @@ public class UsageTrackerTests
         Assert.DoesNotContain(tracker.State.History, r => r.Date == firstDay);
         Assert.Contains(tracker.State.History, r => r.Date == firstDay.AddDays(34));
     }
+
+    [Fact]
+    public void DailyBudgetGranted_FiresOnce_OnTheVeryFirstEvaluate()
+    {
+        var (tracker, _) = Build(FullDaySchedule(dailyLimitMinutes: 45));
+        var grants = new List<(DateOnly Date, TimeSpan Budget)>();
+        tracker.DailyBudgetGranted += (date, budget) => grants.Add((date, budget));
+
+        tracker.Evaluate();
+
+        var grant = Assert.Single(grants);
+        Assert.Equal(DateOnly.FromDateTime(StartUtc.ToLocalTime().DateTime), grant.Date);
+        Assert.Equal(TimeSpan.FromMinutes(45), grant.Budget);
+    }
+
+    [Fact]
+    public void DailyBudgetGranted_FiresAgain_OnMidnightRollover_ButNotOnOrdinaryTicks()
+    {
+        var (tracker, clock) = Build(FullDaySchedule(dailyLimitMinutes: 45));
+        tracker.Evaluate(); // 1st grant
+
+        var grants = new List<(DateOnly Date, TimeSpan Budget)>();
+        tracker.DailyBudgetGranted += (date, budget) => grants.Add((date, budget));
+
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(10)); // ordinary use -- no grant
+        Assert.Empty(grants);
+
+        clock.Advance(TimeSpan.FromHours(20)); // crosses into the next day
+        tracker.Evaluate();
+
+        var grant = Assert.Single(grants);
+        Assert.Equal(DateOnly.FromDateTime(StartUtc.ToLocalTime().DateTime).AddDays(1), grant.Date);
+        Assert.Equal(TimeSpan.FromMinutes(45), grant.Budget); // the full new day's limit, not whatever was left
+    }
+
+    [Fact]
+    public void DailyBudgetGranted_FiresOnUpdateSchedule_WithTheNewLimit()
+    {
+        var (tracker, _) = Build(FullDaySchedule(dailyLimitMinutes: 45));
+        tracker.Evaluate(); // 1st grant
+
+        var grants = new List<(DateOnly Date, TimeSpan Budget)>();
+        tracker.DailyBudgetGranted += (date, budget) => grants.Add((date, budget));
+
+        tracker.UpdateSchedule(FullDaySchedule(dailyLimitMinutes: 20));
+
+        var grant = Assert.Single(grants);
+        Assert.Equal(TimeSpan.FromMinutes(20), grant.Budget);
+    }
+
+    [Fact]
+    public void DailyBudgetGranted_DoesNotFire_OnExtendTimeOrSetRemainingBudget()
+    {
+        // ExtendTime/SetRemainingBudget are an ad-hoc top-up, not a new daily limit period
+        // starting -- they must not be reported as one.
+        var (tracker, _) = Build(FullDaySchedule(dailyLimitMinutes: 45));
+        tracker.Evaluate();
+
+        var grants = new List<(DateOnly Date, TimeSpan Budget)>();
+        tracker.DailyBudgetGranted += (date, budget) => grants.Add((date, budget));
+
+        tracker.ExtendTime(TimeSpan.FromMinutes(15));
+        tracker.SetRemainingBudget(TimeSpan.FromMinutes(30));
+
+        Assert.Empty(grants);
+    }
 }

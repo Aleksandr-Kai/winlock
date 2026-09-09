@@ -49,6 +49,15 @@ public sealed class AgentRuntime
         set { lock (_gate) _pairing.DeviceDisplayName = value; }
     }
 
+    /// <summary>Forwards <see cref="UsageTracker.DailyBudgetGranted"/> — see there for when
+    /// it fires. Subscription itself doesn't need <c>_gate</c>: it's expected to happen once,
+    /// at startup, before <see cref="Evaluate"/> is ever called from the polling loop.</summary>
+    public event Action<DateOnly, TimeSpan>? DailyBudgetGranted
+    {
+        add => _tracker.DailyBudgetGranted += value;
+        remove => _tracker.DailyBudgetGranted -= value;
+    }
+
     public LockDecision Evaluate()
     {
         lock (_gate)
