@@ -137,6 +137,7 @@ public partial class LockWindow : Window
         }
     }
 
+    private const int ImmediateLogoffWindowThreshold = 2; // total lock windows (self + covering)
     private static readonly TimeSpan MaxMultipleWindowsDuration = TimeSpan.FromMinutes(1);
 
     /// <summary>Covering keeps every desktop locked, but it's still a chase: the cap on
@@ -146,8 +147,11 @@ public partial class LockWindow : Window
     /// unconditional backstop, independent of whether covering is currently keeping up: once
     /// there's more than one lock window at all, start a one-minute clock, and if it's still
     /// more than one when that runs out, stop trying to cover every desktop and just log the
-    /// session off instead — every virtual desktop needs the same interactive session, so it
-    /// resets the whole pile at once, whatever the count reached.</summary>
+    /// session off instead. More than <see cref="ImmediateLogoffWindowThreshold"/> at once skips
+    /// the clock entirely -- that many new desktops in one go isn't ordinary use, it's exactly
+    /// what running the cap in <see cref="EnsureCurrentDesktopIsCovered"/> out looks like while
+    /// it's still in progress. Either way, logging off resets the whole pile at once, whatever
+    /// the count reached, because every virtual desktop belongs to the same session.</summary>
     private void EnforceSingleDesktopLimit()
     {
         _desktopCoverageWindows.RemoveAll(p => p.HasExited);
@@ -158,11 +162,19 @@ public partial class LockWindow : Window
             return;
         }
 
+        var totalWindows = _desktopCoverageWindows.Count + 1;
+        if (totalWindows > ImmediateLogoffWindowThreshold)
+        {
+            LogCoverageOnce($"{totalWindows} lock windows open at once (more than {ImmediateLogoffWindowThreshold}) -- forcing an immediate logoff.");
+            SessionLogoff.ForceLogoff();
+            return;
+        }
+
         _multipleWindowsSince ??= DateTimeOffset.Now;
         if (DateTimeOffset.Now - _multipleWindowsSince.Value < MaxMultipleWindowsDuration)
             return;
 
-        LogCoverageOnce($"More than one lock window has been open for over a minute ({_desktopCoverageWindows.Count + 1} total) -- forcing a logoff instead of continuing to chase coverage.");
+        LogCoverageOnce($"More than one lock window has been open for over a minute ({totalWindows} total) -- forcing a logoff instead of continuing to chase coverage.");
         SessionLogoff.ForceLogoff();
     }
 
