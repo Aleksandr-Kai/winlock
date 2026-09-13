@@ -16,6 +16,7 @@ using WinLock.Service.Notifications;
 using WinLock.Service.Screenshots;
 using WinLock.Service.Security;
 
+
 const int NetworkPort = 51843;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -102,6 +103,7 @@ if (OperatingSystem.IsWindows())
         NetworkPort,
         sp.GetRequiredService<ILogger<PairingPipeHandler>>()));
     builder.Services.AddSingleton<ITimeWarningNotifier, TimeWarningNotifier>();
+    builder.Services.AddSingleton<ITouchpadGestureHardener, TouchpadGestureHardener>();
 #pragma warning restore CA1416
 }
 else
@@ -109,6 +111,7 @@ else
     // The lock screen needs a real Windows desktop session; nothing stands in for it here.
     builder.Services.AddSingleton<ILockController, LoggingLockController>();
     builder.Services.AddSingleton<ITimeWarningNotifier, NullTimeWarningNotifier>();
+    builder.Services.AddSingleton<ITouchpadGestureHardener, NullTouchpadGestureHardener>();
 }
 
 builder.Services.AddHostedService<EnforcementWorker>();

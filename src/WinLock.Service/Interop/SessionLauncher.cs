@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.Principal;
 using Microsoft.Win32.SafeHandles;
 
 namespace WinLock.Service.Interop;
@@ -14,6 +15,29 @@ namespace WinLock.Service.Interop;
 [SupportedOSPlatform("windows")]
 public static class SessionLauncher
 {
+    /// <summary>The SID of whoever is signed in on the physical console right now, in the
+    /// <c>S-1-5-...</c> form <see cref="Microsoft.Win32.Registry.Users"/> keys its subkeys
+    /// by — for reaching into that user's own <c>HKEY_CURRENT_USER</c> hive from this SYSTEM
+    /// process without the full impersonation dance <see cref="TryLaunchInActiveSession"/>
+    /// needs to actually put a window on their screen.</summary>
+    public static bool TryGetActiveConsoleUserSid(out string? sid)
+    {
+        sid = null;
+        var sessionId = WTSGetActiveConsoleSessionId();
+        if (sessionId == 0xFFFFFFFF)
+            return false; // no one is logged in on the physical console right now
+
+        if (!WTSQueryUserToken(sessionId, out var userTokenHandle))
+            return false;
+
+        using (userTokenHandle)
+        {
+            using var identity = new WindowsIdentity(userTokenHandle.DangerousGetHandle());
+            sid = identity.User?.Value;
+            return sid is not null;
+        }
+    }
+
     public static bool TryLaunchInActiveSession(string exePath, string arguments, out int processId)
     {
         processId = 0;
