@@ -6,7 +6,7 @@ namespace WinLock.Service;
 /// where there's no lock-screen process or session to check.</summary>
 public sealed class NullOrphanedLockProcessGuard : IOrphanedLockProcessGuard
 {
-    public void CheckForOrphanedLockProcess()
+    public void CheckForOrphanedLockProcess(Func<bool> isLockCurrentlyRequested)
     {
     }
 }

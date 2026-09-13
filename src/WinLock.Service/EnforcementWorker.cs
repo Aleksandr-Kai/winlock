@@ -80,8 +80,12 @@ public sealed class EnforcementWorker : BackgroundService
                             // close command in flight -- give it a head start before trusting
                             // "nothing's running" as confirmation it actually closed. See
                             // OrphanedLockProcessGuard for why the response to it still being
-                            // there is a forced logoff.
-                            _orphanedLockProcessGuard.CheckForOrphanedLockProcess();
+                            // there is a forced logoff. Reads wasLocked itself, not the
+                            // decision that triggered this call: a short budget can relock the
+                            // machine for real before the ~20s check fires, and by then
+                            // wasLocked (kept live by every subsequent tick below) reflects
+                            // that -- without this, a legitimate relock reads as an orphan.
+                            _orphanedLockProcessGuard.CheckForOrphanedLockProcess(() => wasLocked);
                         }
 
                         wasLocked = decision.ShouldBeLocked;
