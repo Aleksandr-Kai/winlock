@@ -4,6 +4,7 @@ using WinLock.Core.Models;
 using WinLock.Core.Network;
 using WinLock.Core.State;
 using WinLock.Core.Warnings;
+using WinLock.Service.Security;
 
 namespace WinLock.Service;
 
@@ -21,6 +22,7 @@ public sealed class EnforcementWorker : BackgroundService
     private readonly ILockController _lockController;
     private readonly IAgentStatusPublisher _statusPublisher;
     private readonly ITimeWarningNotifier _timeWarningNotifier;
+    private readonly ITouchpadGestureHardener _touchpadGestureHardener;
     private readonly TimeWarningTracker _timeWarningTracker = new();
     private readonly ILogger<EnforcementWorker> _logger;
 
@@ -30,6 +32,7 @@ public sealed class EnforcementWorker : BackgroundService
         ILockController lockController,
         IAgentStatusPublisher statusPublisher,
         ITimeWarningNotifier timeWarningNotifier,
+        ITouchpadGestureHardener touchpadGestureHardener,
         ILogger<EnforcementWorker> logger)
     {
         _runtime = runtime;
@@ -37,6 +40,7 @@ public sealed class EnforcementWorker : BackgroundService
         _lockController = lockController;
         _statusPublisher = statusPublisher;
         _timeWarningNotifier = timeWarningNotifier;
+        _touchpadGestureHardener = touchpadGestureHardener;
         _logger = logger;
 
         // Logged (rather than just tracked in UsageHistorySnapshot) so it shows up in the
@@ -60,6 +64,7 @@ public sealed class EnforcementWorker : BackgroundService
                     // The enforcement core must never bring the service down: a crash here
                     // would leave the machine unsupervised. Log and retry next tick instead.
                     var decision = _runtime.Evaluate();
+                    _touchpadGestureHardener.Enforce();
 
                     if (decision.ShouldBeLocked != wasLocked)
                     {
