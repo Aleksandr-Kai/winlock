@@ -67,6 +67,7 @@ static class Diagnostics
         RunCheck("Регистрация запуска в безопасном режиме", CheckSafeModeRegistration);
         RunCheck("Журнал событий Windows (Приложение, последние 3 дня, записи похожие на сбой)", CheckEventLog);
         RunCheck("Журнал событий Windows (Система, последние 3 дня, входы/выходы и перезагрузки)", CheckSessionEvents);
+        RunCheck("Журнал покрытия виртуальных рабочих столов экраном блокировки", CheckDesktopCoverageLog);
 
         var outPath = Path.Combine(AppContext.BaseDirectory, $"WinLock-Diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
         File.WriteAllText(outPath, report.ToString(), Encoding.UTF8);
@@ -218,6 +219,24 @@ static class Diagnostics
                 : "";
             w($"  {info.Name}: {info.Length} байт, изменён {info.LastWriteTime:yyyy-MM-dd HH:mm:ss}{flag}");
         }
+    }
+
+    private static void CheckDesktopCoverageLog(Action<string> w)
+    {
+        // Written by WinLock.Agent.UI's LockWindow.EnsureCurrentDesktopIsCovered — traces
+        // decisions around spawning extra lock windows onto virtual desktops the original one
+        // isn't on (see the class doc there). Only ever grows when something's actually
+        // interesting happening (spawns, stalls, failures) — an empty/missing file means that
+        // logic hasn't hit anything worth recording since the last time it was cleared.
+        var logPath = Path.Combine(AgentDataPathsCompat.DataDir, "tmp", "desktop-coverage.log");
+        w($"Файл: {logPath}, существует: {File.Exists(logPath)}");
+        if (!File.Exists(logPath))
+            return;
+
+        var lines = File.ReadAllLines(logPath);
+        w($"Всего записей: {lines.Length}");
+        foreach (var line in lines.TakeLast(200))
+            w(line);
     }
 
     private static void CheckSafeModeRegistration(Action<string> w)

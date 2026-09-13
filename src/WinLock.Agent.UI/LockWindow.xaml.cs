@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -24,6 +25,7 @@ public partial class LockWindow : Window
     private DispatcherTimer? _pairingWatchTimer;
     private bool _pairingWindowSeenInForeground;
     private DispatcherTimer? _desktopCoverageTimer;
+    private string? _lastLoggedCoverageState;
 
     /// <summary>monitorDesktopCoverage: only the one lock window the service itself launches
     /// should go hunting for virtual desktops without a lock window on them and spawn more —
@@ -77,8 +79,14 @@ public partial class LockWindow : Window
     {
         const int maxCoverageWindows = 10; // sanity cap against any runaway spawn loop
 
-        if (VirtualDesktop.IsOnCurrentDesktop(new WindowInteropHelper(this).Handle) != false)
+        var ownState = VirtualDesktop.IsOnCurrentDesktop(new WindowInteropHelper(this).Handle);
+        if (ownState != false)
+        {
+            LogCoverageOnce(ownState is null
+                ? "Own-window DWM check returned unknown; treating current desktop as covered."
+                : null);
             return; // covered by this window itself, or unknown (fail toward not spawning)
+        }
 
         _desktopCoverageWindows.RemoveAll(p => p.HasExited);
 
@@ -87,24 +95,69 @@ public partial class LockWindow : Window
             covering.Refresh();
             var hwnd = covering.MainWindowHandle;
             if (hwnd == 0)
+            {
+                LogCoverageOnce($"Waiting for covering window PID={covering.Id} to finish starting up (no MainWindowHandle yet); {_desktopCoverageWindows.Count} covering window(s) tracked.");
                 return; // a spawn for some earlier gap is still starting up; give it a moment
-            if (VirtualDesktop.IsOnCurrentDesktop(hwnd) != false)
+            }
+
+            var coveredByThis = VirtualDesktop.IsOnCurrentDesktop(hwnd);
+            if (coveredByThis != false)
+            {
+                LogCoverageOnce(coveredByThis is null
+                    ? $"DWM check for covering window PID={covering.Id} returned unknown; treating current desktop as covered."
+                    : null);
                 return; // covered by that one, or unknown
+            }
         }
 
         if (_desktopCoverageWindows.Count >= maxCoverageWindows)
+        {
+            LogCoverageOnce($"Not spawning another covering window: cap of {maxCoverageWindows} reached.");
             return;
+        }
 
         try
         {
             var exePath = Process.GetCurrentProcess().MainModule!.FileName!;
             var covering = Process.Start(new ProcessStartInfo(exePath, "--covering") { UseShellExecute = false });
             if (covering is not null)
+            {
                 _desktopCoverageWindows.Add(covering);
+                LogCoverageOnce($"Spawned covering window PID={covering.Id} for an uncovered desktop; {_desktopCoverageWindows.Count} covering window(s) now tracked.");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Best-effort — the next tick will just try again.
+            LogCoverageOnce($"Failed to spawn a covering window: {ex.Message}");
+        }
+    }
+
+    /// <summary>Only ever emits when the message changes from the last thing logged, so a
+    /// stuck-for-hours condition doesn't spam this every second — but the transition into
+    /// and out of that condition is always captured. Best-effort into a small file under
+    /// %ProgramData%\WinLock\tmp, which the service ACLs for write access by any signed-in
+    /// user at startup (see ScreenCaptureCoordinator) — this window runs unelevated and could
+    /// not create that ACL itself. A <c>null</c> message means "back to normal" and clears the
+    /// last-logged state without writing anything.</summary>
+    private void LogCoverageOnce(string? message)
+    {
+        if (message == _lastLoggedCoverageState)
+            return;
+        _lastLoggedCoverageState = message;
+        if (message is null)
+            return;
+
+        try
+        {
+            var tempDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "WinLock", "tmp");
+            var logPath = Path.Combine(tempDir, "desktop-coverage.log");
+            File.AppendAllText(logPath, $"[{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}] WinLock desktop coverage: {message}{Environment.NewLine}");
         }
         catch
         {
-            // Best-effort — the next tick will just try again.
+            // Diagnostics only — never let a logging failure affect the lock screen itself.
         }
     }
 
