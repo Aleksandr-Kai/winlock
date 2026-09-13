@@ -22,7 +22,6 @@ public sealed class EnforcementWorker : BackgroundService
     private readonly ILockController _lockController;
     private readonly IAgentStatusPublisher _statusPublisher;
     private readonly ITimeWarningNotifier _timeWarningNotifier;
-    private readonly ITouchpadGestureHardener _touchpadGestureHardener;
     private readonly IOrphanedLockProcessGuard _orphanedLockProcessGuard;
     private readonly TimeWarningTracker _timeWarningTracker = new();
     private readonly ILogger<EnforcementWorker> _logger;
@@ -33,7 +32,6 @@ public sealed class EnforcementWorker : BackgroundService
         ILockController lockController,
         IAgentStatusPublisher statusPublisher,
         ITimeWarningNotifier timeWarningNotifier,
-        ITouchpadGestureHardener touchpadGestureHardener,
         IOrphanedLockProcessGuard orphanedLockProcessGuard,
         ILogger<EnforcementWorker> logger)
     {
@@ -42,7 +40,6 @@ public sealed class EnforcementWorker : BackgroundService
         _lockController = lockController;
         _statusPublisher = statusPublisher;
         _timeWarningNotifier = timeWarningNotifier;
-        _touchpadGestureHardener = touchpadGestureHardener;
         _orphanedLockProcessGuard = orphanedLockProcessGuard;
         _logger = logger;
 
@@ -67,7 +64,6 @@ public sealed class EnforcementWorker : BackgroundService
                     // The enforcement core must never bring the service down: a crash here
                     // would leave the machine unsupervised. Log and retry next tick instead.
                     var decision = _runtime.Evaluate();
-                    _touchpadGestureHardener.Enforce();
 
                     if (decision.ShouldBeLocked != wasLocked)
                     {
