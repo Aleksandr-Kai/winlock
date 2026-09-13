@@ -7,11 +7,12 @@ namespace WinLock.Service.Security;
 
 public interface IOrphanedLockProcessGuard
 {
-    /// <summary>Call whenever a fresh daily budget starts (see
-    /// <see cref="WinLock.Core.AgentRuntime.DailyBudgetGranted"/>) — the one moment a
-    /// lock-screen process should never still be around, since a brand new day starts fully
-    /// unlocked. Runs a check now, plus one more ~10s later before acting on it (a lock window
-    /// mid-exit from an ordinary unlock a moment earlier would show up in the first check too).</summary>
+    /// <summary>Call right after sending the close command to the lock screen (see
+    /// <see cref="WinLock.Core.Locking.ILockController.UnlockAsync"/>) — whatever granted the
+    /// extra time (a schedule change, a parent's top-up, a day rolling over), the machine
+    /// should end up with nothing from the lock screen still running. Waits ~20s (giving the
+    /// close command a head start, rather than racing it) before checking once whether a
+    /// lock-screen process is still around anyway.</summary>
     void CheckForOrphanedLockProcess();
 }
 
@@ -24,28 +25,30 @@ public interface IOrphanedLockProcessGuard
 /// THIS desktop", just ask Windows whether a WinLock.Agent.UI process exists anywhere in
 /// memory at all, independent of any desktop.
 ///
-/// At the instant a fresh day's budget starts, the machine should always be freshly unlocked —
-/// nothing from the lock screen should still be running. If a lock process turns up anyway,
-/// that means one got orphaned on some virtual desktop from the previous lockout instead of
-/// properly exiting — exactly the state a child who dodged the lock on an extra desktop would
-/// leave behind. Rather than try to guess which desktop still needs covering, the response is
-/// to log the whole interactive session off: that destroys every virtual desktop it owns in
-/// one shot, escape route included.
+/// Every time the lock screen is told to close, the machine should shortly end up with nothing
+/// from it still running. If a lock process turns up anyway ~20s later, that means one got
+/// orphaned on some virtual desktop from the previous lockout instead of properly exiting —
+/// exactly the state a child who dodged the lock on an extra desktop would leave behind.
+/// Rather than try to guess which desktop still needs covering, the response is to log the
+/// whole interactive session off: that destroys every virtual desktop it owns in one shot,
+/// escape route included.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class OrphanedLockProcessGuard(ILogger<OrphanedLockProcessGuard> logger) : IOrphanedLockProcessGuard
 {
-    private static readonly TimeSpan ConfirmationDelay = TimeSpan.FromSeconds(10);
+    // Two 10s stages, not one 20s wait, so the close command gets a full 10s to actually take
+    // effect before the check itself starts counting -- a slow-to-exit window right at the
+    // boundary still only needs to close within the second half, not the whole window.
+    private static readonly TimeSpan CloseCommandGracePeriod = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CheckDelay = TimeSpan.FromSeconds(10);
     private const string LockProcessName = "WinLock.Agent.UI";
 
     public void CheckForOrphanedLockProcess()
     {
-        if (!HasLockProcessRunning())
-            return; // the expected, overwhelmingly common case: nothing to do
-
         _ = Task.Run(async () =>
         {
-            await Task.Delay(ConfirmationDelay);
+            await Task.Delay(CloseCommandGracePeriod);
+            await Task.Delay(CheckDelay);
             if (HasLockProcessRunning())
                 HandleConfirmedOrphan();
         });
@@ -57,7 +60,7 @@ public sealed class OrphanedLockProcessGuard(ILogger<OrphanedLockProcessGuard> l
     private void HandleConfirmedOrphan()
     {
         logger.LogWarning(
-            "A {ProcessName} process was still running at the start of a fresh daily budget -- " +
+            "A {ProcessName} process was still running ~20s after being told to close -- " +
             "treating it as orphaned from a virtual-desktop bypass and forcing a logoff.",
             LockProcessName);
 

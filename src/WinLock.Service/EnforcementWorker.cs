@@ -51,15 +51,7 @@ public sealed class EnforcementWorker : BackgroundService
         // how much was granted" trail is exactly what's missing when the phone-side numbers
         // alone don't add up and there's no way to see state.json's actual contents directly.
         _runtime.DailyBudgetGranted += (date, budget) =>
-        {
             _logger.LogInformation("New daily budget granted: {Minutes} minutes for {Date:yyyy-MM-dd}.", (int)budget.TotalMinutes, date);
-
-            // A fresh budget period should always start with nobody locked -- if a lock-screen
-            // process is still around anyway, it's orphaned on some virtual desktop from the
-            // previous lockout rather than having exited properly. See
-            // OrphanedLockProcessGuard for why the response is a forced logoff.
-            _orphanedLockProcessGuard.CheckForOrphanedLockProcess();
-        };
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -80,9 +72,21 @@ public sealed class EnforcementWorker : BackgroundService
                     if (decision.ShouldBeLocked != wasLocked)
                     {
                         if (decision.ShouldBeLocked)
+                        {
                             await _lockController.LockAsync(decision.Reason, stoppingToken);
+                        }
                         else
+                        {
                             await _lockController.UnlockAsync(stoppingToken);
+
+                            // Whatever just caused this unlock (extra time granted, a new
+                            // schedule saved, a day rolling over) leaves the lock screen with a
+                            // close command in flight -- give it a head start before trusting
+                            // "nothing's running" as confirmation it actually closed. See
+                            // OrphanedLockProcessGuard for why the response to it still being
+                            // there is a forced logoff.
+                            _orphanedLockProcessGuard.CheckForOrphanedLockProcess();
+                        }
 
                         wasLocked = decision.ShouldBeLocked;
                     }
