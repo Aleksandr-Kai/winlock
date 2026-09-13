@@ -26,6 +26,7 @@ public partial class LockWindow : Window
     private bool _pairingWindowSeenInForeground;
     private DispatcherTimer? _desktopCoverageTimer;
     private string? _lastLoggedCoverageState;
+    private DateTimeOffset? _multipleWindowsSince;
 
     /// <summary>monitorDesktopCoverage: only the one lock window the service itself launches
     /// should go hunting for virtual desktops without a lock window on them and spawn more —
@@ -64,7 +65,11 @@ public partial class LockWindow : Window
             // actually changed. Poll for that and put a lock window on every desktop that
             // needs one.
             _desktopCoverageTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _desktopCoverageTimer.Tick += (_, _) => EnsureCurrentDesktopIsCovered();
+            _desktopCoverageTimer.Tick += (_, _) =>
+            {
+                EnsureCurrentDesktopIsCovered();
+                EnforceSingleDesktopLimit();
+            };
             _desktopCoverageTimer.Start();
         }
 
@@ -130,6 +135,35 @@ public partial class LockWindow : Window
             // Best-effort — the next tick will just try again.
             LogCoverageOnce($"Failed to spawn a covering window: {ex.Message}");
         }
+    }
+
+    private static readonly TimeSpan MaxMultipleWindowsDuration = TimeSpan.FromMinutes(1);
+
+    /// <summary>Covering keeps every desktop locked, but it's still a chase: the cap on
+    /// <see cref="EnsureCurrentDesktopIsCovered"/> means creating enough desktops fast enough
+    /// eventually outruns it, and an admin re-pairing from the lock screen aside, there's no
+    /// legitimate reason more than one lock window should exist for long. So this is a second,
+    /// unconditional backstop, independent of whether covering is currently keeping up: once
+    /// there's more than one lock window at all, start a one-minute clock, and if it's still
+    /// more than one when that runs out, stop trying to cover every desktop and just log the
+    /// session off instead — every virtual desktop needs the same interactive session, so it
+    /// resets the whole pile at once, whatever the count reached.</summary>
+    private void EnforceSingleDesktopLimit()
+    {
+        _desktopCoverageWindows.RemoveAll(p => p.HasExited);
+
+        if (_desktopCoverageWindows.Count == 0)
+        {
+            _multipleWindowsSince = null;
+            return;
+        }
+
+        _multipleWindowsSince ??= DateTimeOffset.Now;
+        if (DateTimeOffset.Now - _multipleWindowsSince.Value < MaxMultipleWindowsDuration)
+            return;
+
+        LogCoverageOnce($"More than one lock window has been open for over a minute ({_desktopCoverageWindows.Count + 1} total) -- forcing a logoff instead of continuing to chase coverage.");
+        SessionLogoff.ForceLogoff();
     }
 
     /// <summary>Only ever emits when the message changes from the last thing logged, so a
