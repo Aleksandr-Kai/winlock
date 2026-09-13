@@ -23,6 +23,7 @@ public sealed class EnforcementWorker : BackgroundService
     private readonly IAgentStatusPublisher _statusPublisher;
     private readonly ITimeWarningNotifier _timeWarningNotifier;
     private readonly ITouchpadGestureHardener _touchpadGestureHardener;
+    private readonly IOrphanedLockProcessGuard _orphanedLockProcessGuard;
     private readonly TimeWarningTracker _timeWarningTracker = new();
     private readonly ILogger<EnforcementWorker> _logger;
 
@@ -33,6 +34,7 @@ public sealed class EnforcementWorker : BackgroundService
         IAgentStatusPublisher statusPublisher,
         ITimeWarningNotifier timeWarningNotifier,
         ITouchpadGestureHardener touchpadGestureHardener,
+        IOrphanedLockProcessGuard orphanedLockProcessGuard,
         ILogger<EnforcementWorker> logger)
     {
         _runtime = runtime;
@@ -41,6 +43,7 @@ public sealed class EnforcementWorker : BackgroundService
         _statusPublisher = statusPublisher;
         _timeWarningNotifier = timeWarningNotifier;
         _touchpadGestureHardener = touchpadGestureHardener;
+        _orphanedLockProcessGuard = orphanedLockProcessGuard;
         _logger = logger;
 
         // Logged (rather than just tracked in UsageHistorySnapshot) so it shows up in the
@@ -48,7 +51,15 @@ public sealed class EnforcementWorker : BackgroundService
         // how much was granted" trail is exactly what's missing when the phone-side numbers
         // alone don't add up and there's no way to see state.json's actual contents directly.
         _runtime.DailyBudgetGranted += (date, budget) =>
+        {
             _logger.LogInformation("New daily budget granted: {Minutes} minutes for {Date:yyyy-MM-dd}.", (int)budget.TotalMinutes, date);
+
+            // A fresh budget period should always start with nobody locked -- if a lock-screen
+            // process is still around anyway, it's orphaned on some virtual desktop from the
+            // previous lockout rather than having exited properly. See
+            // OrphanedLockProcessGuard for why the response is a forced logoff.
+            _orphanedLockProcessGuard.CheckForOrphanedLockProcess();
+        };
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

@@ -104,6 +104,7 @@ if (OperatingSystem.IsWindows())
         sp.GetRequiredService<ILogger<PairingPipeHandler>>()));
     builder.Services.AddSingleton<ITimeWarningNotifier, TimeWarningNotifier>();
     builder.Services.AddSingleton<ITouchpadGestureHardener, TouchpadGestureHardener>();
+    builder.Services.AddSingleton<IOrphanedLockProcessGuard, OrphanedLockProcessGuard>();
 #pragma warning restore CA1416
 }
 else
@@ -112,6 +113,7 @@ else
     builder.Services.AddSingleton<ILockController, LoggingLockController>();
     builder.Services.AddSingleton<ITimeWarningNotifier, NullTimeWarningNotifier>();
     builder.Services.AddSingleton<ITouchpadGestureHardener, NullTouchpadGestureHardener>();
+    builder.Services.AddSingleton<IOrphanedLockProcessGuard, NullOrphanedLockProcessGuard>();
 }
 
 builder.Services.AddHostedService<EnforcementWorker>();
