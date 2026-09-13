@@ -92,11 +92,10 @@ public partial class LockWindow : Window
 
         foreach (var covering in _desktopCoverageWindows)
         {
-            covering.Refresh();
-            var hwnd = covering.MainWindowHandle;
+            var hwnd = WindowFinder.FindTopLevelWindow(covering.Id);
             if (hwnd == 0)
             {
-                LogCoverageOnce($"Waiting for covering window PID={covering.Id} to finish starting up (no MainWindowHandle yet); {_desktopCoverageWindows.Count} covering window(s) tracked.");
+                LogCoverageOnce($"Waiting for covering window PID={covering.Id} to finish starting up (no top-level window found yet); {_desktopCoverageWindows.Count} covering window(s) tracked.");
                 return; // a spawn for some earlier gap is still starting up; give it a moment
             }
 

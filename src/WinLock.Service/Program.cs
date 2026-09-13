@@ -94,7 +94,6 @@ if (OperatingSystem.IsWindows())
         NetworkPort,
         sp.GetRequiredService<ILogger<PairingPipeHandler>>()));
     builder.Services.AddSingleton<ITimeWarningNotifier, TimeWarningNotifier>();
-    builder.Services.AddSingleton<ITouchpadGestureHardener, TouchpadGestureHardener>();
     builder.Services.AddSingleton<IOrphanedLockProcessGuard, OrphanedLockProcessGuard>();
 #pragma warning restore CA1416
 }
@@ -103,7 +102,6 @@ else
     // The lock screen needs a real Windows desktop session; nothing stands in for it here.
     builder.Services.AddSingleton<ILockController, LoggingLockController>();
     builder.Services.AddSingleton<ITimeWarningNotifier, NullTimeWarningNotifier>();
-    builder.Services.AddSingleton<ITouchpadGestureHardener, NullTouchpadGestureHardener>();
     builder.Services.AddSingleton<IOrphanedLockProcessGuard, NullOrphanedLockProcessGuard>();
 }
 
