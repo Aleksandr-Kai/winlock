@@ -12,8 +12,13 @@ public interface IOrphanedLockProcessGuard
     /// extra time (a schedule change, a parent's top-up, a day rolling over), the machine
     /// should end up with nothing from the lock screen still running. Waits ~20s (giving the
     /// close command a head start, rather than racing it) before checking once whether a
-    /// lock-screen process is still around anyway.</summary>
-    void CheckForOrphanedLockProcess();
+    /// lock-screen process is still around anyway.
+    ///
+    /// <paramref name="isLockCurrentlyRequested"/> is read only at that ~20s mark, not now —
+    /// a short budget can legitimately re-lock the machine before the check even fires, and a
+    /// running lock process at that point is then exactly what should be there, not an orphan
+    /// from this unlock.</summary>
+    void CheckForOrphanedLockProcess(Func<bool> isLockCurrentlyRequested);
 }
 
 /// <summary>
@@ -43,13 +48,13 @@ public sealed class OrphanedLockProcessGuard(ILogger<OrphanedLockProcessGuard> l
     private static readonly TimeSpan CheckDelay = TimeSpan.FromSeconds(10);
     private const string LockProcessName = "WinLock.Agent.UI";
 
-    public void CheckForOrphanedLockProcess()
+    public void CheckForOrphanedLockProcess(Func<bool> isLockCurrentlyRequested)
     {
         _ = Task.Run(async () =>
         {
             await Task.Delay(CloseCommandGracePeriod);
             await Task.Delay(CheckDelay);
-            if (HasLockProcessRunning())
+            if (HasLockProcessRunning() && !isLockCurrentlyRequested())
                 HandleConfirmedOrphan();
         });
     }
