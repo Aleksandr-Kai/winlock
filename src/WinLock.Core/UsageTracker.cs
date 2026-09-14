@@ -166,7 +166,7 @@ public sealed class UsageTracker
                     // once lifted — but that's the only exception; see the pause below.
                     GrantDailyBudget(today);
                 }
-                else if (!_state.ManuallyLocked)
+                else if (!_state.ManuallyLocked && IsWithinScheduleOrOverride(nowUtc))
                 {
                     var chargeable = elapsedMonotonic > MaxChargeablePerEvaluation
                         ? MaxChargeablePerEvaluation
@@ -190,8 +190,9 @@ public sealed class UsageTracker
                         _state.RemainingBudget = TimeSpan.Zero;
                     RecordUsage(today, actuallyDeducted);
                 }
-                // While manually locked, the budget simply doesn't move — nothing is being
-                // used, so nothing should be spent.
+                // While manually locked, or the machine is on outside the allowed schedule
+                // window (and no override covers it), the budget simply doesn't move —
+                // nothing chargeable is being used, so nothing should be spent.
             }
             // While tamper is suspected, the budget is neither decremented nor rolled over —
             // Decide() below locks the machine outright, and it stays locked until cleared.
@@ -200,9 +201,22 @@ public sealed class UsageTracker
         _state.LastMonotonicMs = nowMonotonicMs;
         _state.LastRealUtc = nowUtc;
 
-        var decision = Decide(nowUtc.ToLocalTime(), nowUtc);
+        var decision = Decide(nowUtc);
         _state.IsLocked = decision.ShouldBeLocked;
         return decision;
+    }
+
+    /// <summary>True if the schedule's own allowed window covers <paramref name="nowUtc"/>,
+    /// or a parent-granted override (see <see cref="UsageState.ScheduleOverrideUntilUtc"/>)
+    /// does. Shared by <see cref="Decide"/> (what the window check gates) and <see cref="Evaluate"/>
+    /// (whether elapsed time is chargeable at all) so the two can't drift apart — charging the
+    /// budget for time spent locked out by the schedule would be exactly as wrong as charging
+    /// it while manually locked.</summary>
+    private bool IsWithinScheduleOrOverride(DateTimeOffset nowUtc)
+    {
+        if (_state.ScheduleOverrideUntilUtc is { } until && nowUtc < until)
+            return true;
+        return _schedule.IsWithinAllowedWindow(nowUtc.ToLocalTime());
     }
 
     /// <summary>Resets the budget to the current schedule's daily limit for the given date
@@ -240,7 +254,7 @@ public sealed class UsageTracker
             _state.History = _state.History.OrderBy(r => r.Date).TakeLast(MaxHistoryDays).ToList();
     }
 
-    private LockDecision Decide(DateTimeOffset localNow, DateTimeOffset nowUtc)
+    private LockDecision Decide(DateTimeOffset nowUtc)
     {
         // An explicit "lock it now" from a parent overrides everything else — including a
         // device that isn't configured yet, which otherwise never locks at all.
@@ -258,8 +272,7 @@ public sealed class UsageTracker
         if (_state.RemainingBudget <= TimeSpan.Zero)
             return new LockDecision(true, LockReason.BudgetExhausted, _state.RemainingBudget);
 
-        var withinOverride = _state.ScheduleOverrideUntilUtc is { } until && nowUtc < until;
-        if (!withinOverride && !_schedule.IsWithinAllowedWindow(localNow))
+        if (!IsWithinScheduleOrOverride(nowUtc))
             return new LockDecision(true, LockReason.OutsideAllowedWindow, _state.RemainingBudget);
 
         return new LockDecision(false, LockReason.None, _state.RemainingBudget);
