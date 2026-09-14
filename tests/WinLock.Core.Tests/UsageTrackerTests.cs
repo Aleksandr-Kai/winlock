@@ -6,14 +6,17 @@ public class UsageTrackerTests
 {
     private static readonly DateTimeOffset StartUtc = new(2026, 8, 24, 10, 0, 0, TimeSpan.Zero);
 
+    /// <summary>A schedule meant to be unrestricted by time-of-day/day-of-week, so tests using
+    /// it can focus purely on budget/history mechanics — covers every day of the week, not
+    /// just <see cref="StartUtc"/>'s, since several tests advance the clock across midnight
+    /// into a different one.</summary>
     private static ScheduleConfig FullDaySchedule(int dailyLimitMinutes) => new()
     {
         IsConfigured = true,
         DailyLimitMinutes = dailyLimitMinutes,
-        AllowedWindows = new Dictionary<DayOfWeek, List<TimeWindow>>
-        {
-            [StartUtc.DayOfWeek] = new() { new TimeWindow(TimeOnly.MinValue, TimeOnly.MaxValue) },
-        },
+        AllowedWindows = Enum.GetValues<DayOfWeek>().ToDictionary(
+            day => day,
+            _ => new List<TimeWindow> { new(TimeOnly.MinValue, TimeOnly.MaxValue) }),
     };
 
     private static (UsageTracker tracker, FakeClock clock) Build(ScheduleConfig schedule)
@@ -116,6 +119,35 @@ public class UsageTrackerTests
 
         Assert.True(decision.ShouldBeLocked);
         Assert.Equal(LockReason.OutsideAllowedWindow, decision.Reason);
+    }
+
+    [Fact]
+    public void Evaluate_PausesTheBudgetCountdown_WhileOutsideAllowedWindow()
+    {
+        // Regression test: the machine being on outside the scheduled window (too early,
+        // too late) used to still charge elapsed time against RemainingBudget exactly as if
+        // it were real use, even though Decide() keeps it locked the whole time for
+        // OutsideAllowedWindow -- silently eating into the next allowed window's budget for
+        // time the child never actually got to use the PC.
+        var schedule = new ScheduleConfig
+        {
+            IsConfigured = true,
+            DailyLimitMinutes = 120,
+            AllowedWindows = new Dictionary<DayOfWeek, List<TimeWindow>>
+            {
+                // Window that does not contain StartUtc's time-of-day (10:00).
+                [StartUtc.DayOfWeek] = new() { new TimeWindow(new TimeOnly(18, 0), new TimeOnly(20, 0)) },
+            },
+        };
+        var (tracker, clock) = Build(schedule);
+        var before = tracker.Evaluate();
+        Assert.True(before.ShouldBeLocked);
+        Assert.Equal(LockReason.OutsideAllowedWindow, before.Reason);
+
+        TickThroughActiveUse(tracker, clock, TimeSpan.FromMinutes(15));
+
+        Assert.Equal(TimeSpan.FromMinutes(120), tracker.State.RemainingBudget);
+        Assert.Empty(tracker.State.History);
     }
 
     [Fact]
